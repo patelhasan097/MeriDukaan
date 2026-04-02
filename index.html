@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Meri Dukaan</title>
+    <meta name="theme-color" content="#1a1a2e">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ============ SPLASH SCREEN ============ -->
+<div id="splashScreen" class="screen splash-screen active">
+    <div class="splash-content">
+        <div class="splash-icon-wrap">
+            <div class="splash-icon">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"/>
+                    <path d="M8 12s1.5-4 4-4 4 4 4 4-1.5 4-4 4-4-4-4-4"/>
+                </svg>
+            </div>
+        </div>
+        <h1 class="splash-title">Meri Dukaan</h1>
+        <p class="splash-sub">Business Management</p>
+        <div class="splash-loader"><div class="splash-bar"></div></div>
+    </div>
+</div>
+
+<!-- ============ PIN SETUP ============ -->
+<div id="pinSetupScreen" class="screen pin-screen">
+    <div class="pin-bg-shapes">
+        <div class="pin-shape s1"></div>
+        <div class="pin-shape s2"></div>
+        <div class="pin-shape s3"></div>
+    </div>
+    <div class="pin-card">
+        <div class="pin-icon-wrap">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        </div>
+        <h2 class="pin-heading">Create PIN</h2>
+        <p class="pin-desc">4 digit PIN set karein apni dukaan ke liye</p>
+        <div class="pin-dots" id="setupDots">
+            <div class="pin-dot"></div><div class="pin-dot"></div>
+            <div class="pin-dot"></div><div class="pin-dot"></div>
+        </div>
+        <div class="pin-error" id="setupErr"></div>
+        <div class="pin-keypad" id="setupPad"></div>
+    </div>
+</div>
+
+<!-- ============ PIN CONFIRM ============ -->
+<div id="pinConfirmScreen" class="screen pin-screen">
+    <div class="pin-bg-shapes">
+        <div class="pin-shape s1"></div>
+        <div class="pin-shape s2"></div>
+        <div class="pin-shape s3"></div>
+    </div>
+    <div class="pin-card">
+        <div class="pin-icon-wrap confirm">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        </div>
+        <h2 class="pin-heading">Confirm PIN</h2>
+        <p class="pin-desc">Wahi PIN dubara daalein</p>
+        <div class="pin-dots" id="confirmDots">
+            <div class="pin-dot"></div><div class="pin-dot"></div>
+            <div class="pin-dot"></div><div class="pin-dot"></div>
+        </div>
+        <div class="pin-error" id="confirmErr"></div>
+        <div class="pin-keypad" id="confirmPad"></div>
+    </div>
+</div>
+
+<!-- ============ PIN LOGIN ============ -->
+<div id="pinLoginScreen" class="screen pin-screen">
+    <div class="pin-bg-shapes">
+        <div class="pin-shape s1"></div>
+        <div class="pin-shape s2"></div>
+        <div class="pin-shape s3"></div>
+    </div>
+    <div class="pin-card">
+        <div class="pin-icon-wrap">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        </div>
+        <h2 class="pin-heading">Welcome Back</h2>
+        <p class="pin-desc">Apna 4 digit PIN daalein</p>
+        <div class="pin-dots" id="loginDots">
+            <div class="pin-dot"></div><div class="pin-dot"></div>
+            <div class="pin-dot"></div><div class="pin-dot"></div>
+        </div>
+        <div class="pin-error" id="loginErr"></div>
+        <div class="pin-keypad" id="loginPad"></div>
+    </div>
+</div>
+
+<!-- ============ DASHBOARD ============ -->
+<div id="dashboardScreen" class="screen">
+    <div class="dash-header">
+        <div class="dash-header-bg"></div>
+        <div class="dash-header-content">
+            <div class="dash-top">
+                <div>
+                    <p class="dash-greeting" id="dashGreeting">Assalamu Alaikum!</p>
+                    <h1 class="dash-title">Meri Dukaan</h1>
+                    <p class="dash-date" id="todayDate"></p>
+                </div>
+                <button class="lock-btn" onclick="lockApp()" aria-label="Lock">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                </button>
+            </div>
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-icon si-roti">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10"/></svg>
+                    </div>
+                    <div class="stat-info">
+                        <p class="stat-label">Roti Biki</p>
+                        <h3 class="stat-val" id="dRoti">0</h3>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon si-income">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                    </div>
+                    <div class="stat-info">
+                        <p class="stat-label">Income</p>
+                        <h3 class="stat-val" id="dIncome">&#8377;0</h3>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon si-expense">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/></svg>
+                    </div>
+                    <div class="stat-info">
+                        <p class="stat-label">Kharcha</p>
+                        <h3 class="stat-val" id="dExpense">&#8377;0</h3>
+                    </div>
+                </div>
+                <div class="stat-card" id="profitCard">
+                    <div class="stat-icon si-profit">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 18 8.5 10.5 13.5 15.5 23 6"/><polyline points="17 6 23 6 23 12"/></svg>
+                    </div>
+                    <div class="stat-info">
+                        <p class="stat-label">Profit</p>
+                        <h3 class="stat-val" id="dProfit">&#8377;0</h3>
+                    </div>
+                </div>
+            </div>
+
+            <div class="udhari-strip">
+                <div class="us-left">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+                    <span>Udhari Baaki</span>
+                </div>
+                <span class="us-amount" id="dUdhari">&#8377;0</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="dash-body">
+        <h3 class="sec-title">Quick Actions</h3>
+        <div class="action-grid">
+            <button class="action-btn" onclick="goTo('salesScreen')">
+                <div class="ab-icon abi-sales">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10"/></svg>
+                </div>
+                <span>Sales</span>
+            </button>
+            <button class="action-btn" onclick="goTo('expenseScreen')">
+                <div class="ab-icon abi-expense">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/></svg>
+                </div>
+                <span>Kharcha</span>
+            </button>
+            <button class="action-btn" onclick="goTo('customerScreen')">
+                <div class="ab-icon abi-cust">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+                </div>
+                <span>Customers</span>
+            </button>
+            <button class="action-btn" onclick="goTo('udhariScreen')">
+                <div class="ab-icon abi-udhari">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+                </div>
+                <span>Udhari</span>
+            </button>
+            <button class="action-btn" onclick="goTo('reportScreen')">
+                <div class="ab-icon abi-report">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+                </div>
+                <span>Reports</span>
+            </button>
+            <button class="action-btn" onclick="goTo('settingScreen')">
+                <div class="ab-icon abi-settings">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+                </div>
+                <span>Settings</span>
+            </button>
+        </div>
+
+        <h3 class="sec-title">Today's Activity</h3>
+        <div class="activity-wrap">
+            <div class="act-card">
+                <div class="act-header">
+                    <span class="act-dot dot-green"></span>
+                    <span class="act-label">Recent Sales</span>
+                </div>
+                <div id="recentSales"><div class="no-data">Aaj koi sale nahi hui</div></div>
+            </div>
+            <div class="act-card">
+                <div class="act-header">
+                    <span class="act-dot dot-red"></span>
+                    <span class="act-label">Recent Kharcha</span>
+                </div>
+                <div id="recentExp"><div class="no-data">Aaj koi kharcha nahi</div></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ============ CUSTOMERS ============ -->
+<div id="customerScreen" class="screen">
+    <div class="page-top">
+        <button class="top-back" onclick="goTo('dashboardScreen')">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <h2 class="top-title">Customers</h2>
+        <button class="top-action" onclick="openCustomerForm()">+ Add</button>
+    </div>
+    <div class="sub-info" id="custCount">0 Customers</div>
+    <div class="page-body" id="customerList"></div>
+</div>
+
+<!-- ============ SALES ============ -->
+<div id="salesScreen" class="screen">
+    <div class="page-top">
+        <button class="top-back" onclick="goTo('dashboardScreen')">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <h2 class="top-title">Sales</h2>
+        <button class="top-action" onclick="openSaleForm()">+ Add</button>
+    </div>
+    <div class="date-nav">
+        <button class="dn-arrow" onclick="changeSalesDate(-1)">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <div class="dn-date-wrap">
+            <input type="date" id="salesDate" class="dn-date" onchange="loadSalesForDate()">
+        </div>
+        <button class="dn-arrow" onclick="changeSalesDate(1)">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
+    </div>
+    <div class="summary-bar">
+        <div class="sb-item"><span class="sb-val" id="sRoti">0</span><span class="sb-lbl">Roti</span></div>
+        <div class="sb-sep"></div>
+        <div class="sb-item"><span class="sb-val green" id="sIncome">&#8377;0</span><span class="sb-lbl">Income</span></div>
+        <div class="sb-sep"></div>
+        <div class="sb-item"><span class="sb-val" id="sCash">&#8377;0</span><span class="sb-lbl">Cash+UPI</span></div>
+        <div class="sb-sep"></div>
+        <div class="sb-item"><span class="sb-val amber" id="sUdhari">&#8377;0</span><span class="sb-lbl">Udhari</span></div>
+    </div>
+    <div class="page-body" id="salesList"></div>
+</div>
+
+<!-- ============ EXPENSE / KHARCHA ============ -->
+<div id="expenseScreen" class="screen">
+    <div class="page-top">
+        <button class="top-back" onclick="goTo('dashboardScreen')">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <h2 class="top-title">Kharcha</h2>
+        <button class="top-action" onclick="openExpenseForm()">+ Add</button>
+    </div>
+    <div class="date-nav">
+        <button class="dn-arrow" onclick="changeExpDate(-1)">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <div class="dn-date-wrap">
+            <input type="date" id="expDate" class="dn-date" onchange="loadExpForDate()">
+        </div>
+        <button class="dn-arrow" onclick="changeExpDate(1)">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
+    </div>
+    <div class="summary-bar">
+        <div class="sb-item"><span class="sb-val red" id="eTotal">&#8377;0</span><span class="sb-lbl">Total Kharcha</span></div>
+        <div class="sb-sep"></div>
+        <div class="sb-item"><span class="sb-val" id="eCount">0</span><span class="sb-lbl">Items</span></div>
+    </div>
+    <div class="page-body" id="expList"></div>
+</div>
+
+<!-- ============ UDHARI ============ -->
+<div id="udhariScreen" class="screen">
+    <div class="page-top">
+        <button class="top-back" onclick="goTo('dashboardScreen')">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <h2 class="top-title">Udhari Register</h2>
+        <div></div>
+    </div>
+    <div class="udhari-hero">
+        <p class="uh-label">Total Udhari Baaki</p>
+        <h2 class="uh-amount" id="uTotalPending">&#8377;0</h2>
+    </div>
+    <div class="page-body" id="udhariList"></div>
+</div>
+
+<!-- ============ REPORTS ============ -->
+<div id="reportScreen" class="screen">
+    <div class="page-top">
+        <button class="top-back" onclick="goTo('dashboardScreen')">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <h2 class="top-title">Reports</h2>
+        <div></div>
+    </div>
+    <div class="report-tabs">
+        <button class="rt-btn active" onclick="switchReport('daily',this)">Daily</button>
+        <button class="rt-btn" onclick="switchReport('weekly',this)">Weekly</button>
+        <button class="rt-btn" onclick="switchReport('monthly',this)">Monthly</button>
+    </div>
+    <div class="date-nav">
+        <button class="dn-arrow" onclick="changeReportDate(-1)">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <div class="dn-date-wrap">
+            <input type="date" id="reportDate" class="dn-date" onchange="loadReport()">
+        </div>
+        <button class="dn-arrow" onclick="changeReportDate(1)">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
+    </div>
+    <div id="reportContent" class="page-body report-body"></div>
+    <div class="pdf-btn-wrap">
+        <button class="pdf-btn" onclick="generatePDF()">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+            <span>PDF Download</span>
+        </button>
+    </div>
+</div>
+
+<!-- ============ SETTINGS ============ -->
+<div id="settingScreen" class="screen">
+    <div class="page-top">
+        <button class="top-back" onclick="goTo('dashboardScreen')">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <h2 class="top-title">Settings</h2>
+        <div></div>
+    </div>
+    <div class="settings-list">
+        <div class="set-item" onclick="showChangePinUI()">
+            <div class="si-icon si-blue">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+            </div>
+            <div class="si-text">
+                <h4>Change PIN</h4>
+                <p>Apna security PIN badlein</p>
+            </div>
+            <svg class="si-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+        </div>
+        <div class="set-item" onclick="exportData()">
+            <div class="si-icon si-green">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            </div>
+            <div class="si-text">
+                <h4>Export Backup</h4>
+                <p>Data download karein (JSON file)</p>
+            </div>
+            <svg class="si-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+        </div>
+        <div class="set-item" onclick="document.getElementById('importFile').click()">
+            <div class="si-icon si-purple">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            </div>
+            <div class="si-text">
+                <h4>Import Backup</h4>
+                <p>Backup file se data restore karein</p>
+            </div>
+            <svg class="si-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+        </div>
+        <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(event)">
+        <div class="set-item danger" onclick="resetAllData()">
+            <div class="si-icon si-red">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+            </div>
+            <div class="si-text">
+                <h4>Delete All Data</h4>
+                <p>Saara data permanently delete karein</p>
+            </div>
+            <svg class="si-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+        </div>
+        <div class="app-footer">
+            <p class="af-name">Meri Dukaan v2.0</p>
+            <p class="af-sub">Made with care for Hasan Bhai</p>
+        </div>
+    </div>
+</div>
+
+<!-- ============ CUSTOMER FORM ============ -->
+<div id="customerFormOverlay" class="overlay">
+    <div class="page-top">
+        <button class="top-back" onclick="closeCustomerForm()">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <h2 class="top-title" id="cfTitle">New Customer</h2>
+        <div></div>
+    </div>
+    <div class="form-body">
+        <form id="customerForm" onsubmit="saveCustomer(event)">
+            <input type="hidden" id="cfId">
+            <div class="fg">
+                <label class="fg-label">Customer Ka Naam *</label>
+                <input type="text" id="cfName" class="fg-input" required placeholder="Jaise: Sharma Ji" autocomplete="off">
+            </div>
+            <div class="fg">
+                <label class="fg-label">Rate Per Roti (&#8377;) *</label>
+                <input type="number" id="cfRate" class="fg-input" required placeholder="Jaise: 5" step="0.5" min="1" inputmode="decimal">
+            </div>
+            <div class="fg">
+                <label class="fg-label">Phone Number</label>
+                <input type="tel" id="cfPhone" class="fg-input" placeholder="Optional" inputmode="tel">
+            </div>
+            <div class="fg">
+                <label class="fg-label">Order Type *</label>
+                <div class="toggle-row">
+                    <button type="button" class="tgl-btn active" onclick="setOrderType('fixed',this)">Fixed Daily</button>
+                    <button type="button" class="tgl-btn" onclick="setOrderType('variable',this)">Roz Alag</button>
+                </div>
+                <input type="hidden" id="cfOrderType" value="fixed">
+            </div>
+            <div class="fg" id="fixedQtyGroup">
+                <label class="fg-label">Daily Kitni Roti *</label>
+                <input type="number" id="cfQty" class="fg-input" placeholder="Jaise: 80" min="1" inputmode="numeric">
+            </div>
+            <button type="submit" class="primary-btn">Save Customer</button>
+        </form>
+    </div>
+</div>
+
+<!-- ============ SALE FORM ============ -->
+<div id="saleFormOverlay" class="overlay">
+    <div class="page-top">
+        <button class="top-back" onclick="closeSaleForm()">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <h2 class="top-title" id="sfTitle">New Sale</h2>
+        <div></div>
+    </div>
+    <div class="form-body">
+        <form id="saleForm" onsubmit="saveSale(event)">
+            <input type="hidden" id="sfId">
+            <div class="fg">
+                <label class="fg-label">Customer *</label>
+                <select id="sfCustomer" class="fg-input" required onchange="onSaleCustomerSelect()">
+                    <option value="">-- Customer Chunein --</option>
+                </select>
+            </div>
+            <div class="fg-row">
+                <div class="fg">
+                    <label class="fg-label">Rate (&#8377;)</label>
+                    <input type="number" id="sfRate" class="fg-input" step="0.5" min="1" inputmode="decimal" oninput="calcSaleTotal()" readonly>
+                </div>
+                <div class="fg">
+                    <label class="fg-label">Quantity *</label>
+                    <input type="number" id="sfQty" class="fg-input" required min="1" inputmode="numeric" oninput="calcSaleTotal()" placeholder="Roti">
+                </div>
+            </div>
+            <div class="total-display">
+                <span>Total</span>
+                <span class="td-amount" id="sfTotal">&#8377;0</span>
+            </div>
+            <div class="fg">
+                <label class="fg-label">Payment Type *</label>
+                <div class="toggle-row tr-3">
+                    <button type="button" class="tgl-btn active" onclick="setPayType('sfPayment','cash',this)">Cash</button>
+                    <button type="button" class="tgl-btn" onclick="setPayType('sfPayment','upi',this)">UPI</button>
+                    <button type="button" class="tgl-btn" onclick="setPayType('sfPayment','udhari',this)">Udhari</button>
+                </div>
+                <input type="hidden" id="sfPayment" value="cash">
+            </div>
+            <button type="submit" class="primary-btn">Save Sale</button>
+        </form>
+    </div>
+</div>
+
+<!-- ============ EXPENSE FORM ============ -->
+<div id="expFormOverlay" class="overlay">
+    <div class="page-top">
+        <button class="top-back" onclick="closeExpForm()">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <h2 class="top-title" id="efTitle">New Kharcha</h2>
+        <div></div>
+    </div>
+    <div class="form-body">
+        <form id="expForm" onsubmit="saveExpense(event)">
+            <input type="hidden" id="efId">
+            <div class="fg">
+                <label class="fg-label">Category *</label>
+                <div class="cat-pills">
+                    <button type="button" class="cat-pill active" onclick="setExpCat('atta',this)">Atta</button>
+                    <button type="button" class="cat-pill" onclick="setExpCat('oil',this)">Oil/Tel</button>
+                    <button type="button" class="cat-pill" onclick="setExpCat('gas',this)">Gas</button>
+                    <button type="button" class="cat-pill" onclick="setExpCat('poly',this)">Polythene</button>
+                    <button type="button" class="cat-pill" onclick="setExpCat('other',this)">Other</button>
+                </div>
+                <input type="hidden" id="efCat" value="atta">
+            </div>
+            <div class="fg" id="efDetailGroup" style="display:none">
+                <label class="fg-label">Description</label>
+                <input type="text" id="efDetail" class="fg-input" placeholder="Kya kharcha hua">
+            </div>
+            <div class="fg" id="efWeightGroup">
+                <label class="fg-label">Weight (KG)</label>
+                <input type="number" id="efWeight" class="fg-input" placeholder="Jaise: 50" min="0.1" step="0.1" inputmode="decimal" oninput="calcExpRate()">
+            </div>
+            <div class="fg">
+                <label class="fg-label">Amount (&#8377;) *</label>
+                <input type="number" id="efAmount" class="fg-input" required placeholder="Kitne rupay" min="1" inputmode="numeric" oninput="calcExpRate()">
+            </div>
+            <div id="efRateInfo" class="price-compare" style="display:none"></div>
+            <div class="fg">
+                <label class="fg-label">Payment</label>
+                <div class="toggle-row">
+                    <button type="button" class="tgl-btn active" onclick="setPayType('efPay','cash',this)">Cash</button>
+                    <button type="button" class="tgl-btn" onclick="setPayType('efPay','upi',this)">UPI</button>
+                </div>
+                <input type="hidden" id="efPay" value="cash">
+            </div>
+            <button type="submit" class="primary-btn">Save Kharcha</button>
+        </form>
+    </div>
+</div>
+
+<!-- ============ UDHARI PAYMENT ============ -->
+<div id="udhariPayOverlay" class="overlay">
+    <div class="page-top">
+        <button class="top-back" onclick="closeUdhariPay()">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <h2 class="top-title" id="upTitle">Udhari Detail</h2>
+        <div></div>
+    </div>
+    <div class="form-body">
+        <div id="upDetail" class="udhari-summary-card"></div>
+        <h3 class="sec-title" style="padding-left:0">Payment Karein</h3>
+        <form id="upForm" onsubmit="saveUdhariPayment(event)">
+            <input type="hidden" id="upCustId">
+            <input type="hidden" id="upCustName">
+            <div class="fg">
+                <label class="fg-label">Amount (&#8377;) *</label>
+                <input type="number" id="upAmount" class="fg-input" required min="1" inputmode="numeric" placeholder="Kitna paisa aaya">
+            </div>
+            <div class="fg">
+                <label class="fg-label">Mode</label>
+                <div class="toggle-row">
+                    <button type="button" class="tgl-btn active" onclick="setPayType('upPay','cash',this)">Cash</button>
+                    <button type="button" class="tgl-btn" onclick="setPayType('upPay','upi',this)">UPI</button>
+                </div>
+                <input type="hidden" id="upPay" value="cash">
+            </div>
+            <button type="submit" class="primary-btn">Save Payment</button>
+        </form>
+        <h3 class="sec-title" style="padding-left:0;margin-top:24px">Payment History</h3>
+        <div id="upHistory"></div>
+    </div>
+</div>
+
+<!-- ============ CHANGE PIN ============ -->
+<div id="changePinOverlay" class="overlay">
+    <div class="page-top">
+        <button class="top-back" onclick="closeChangePin()">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <h2 class="top-title">Change PIN</h2>
+        <div></div>
+    </div>
+    <div class="form-body">
+        <form onsubmit="saveNewPin(event)">
+            <div class="fg">
+                <label class="fg-label">Purana PIN</label>
+                <input type="password" id="cpOld" class="fg-input" required maxlength="4" pattern="[0-9]{4}" inputmode="numeric" placeholder="****">
+            </div>
+            <div class="fg">
+                <label class="fg-label">Naya PIN</label>
+                <input type="password" id="cpNew" class="fg-input" required maxlength="4" pattern="[0-9]{4}" inputmode="numeric" placeholder="****">
+            </div>
+            <div class="fg">
+                <label class="fg-label">Naya PIN Confirm</label>
+                <input type="password" id="cpConfirm" class="fg-input" required maxlength="4" pattern="[0-9]{4}" inputmode="numeric" placeholder="****">
+            </div>
+            <button type="submit" class="primary-btn">Change PIN</button>
+        </form>
+    </div>
+</div>
+
+<!-- ============ CONFIRM DIALOG ============ -->
+<div id="confirmDialog" class="modal-bg">
+    <div class="modal-card">
+        <div class="modal-icon" id="confirmIcon"></div>
+        <h3 id="confirmTitle">Are you sure?</h3>
+        <p id="confirmMsg">This action cannot be undone.</p>
+        <div class="modal-btns">
+            <button class="mbtn mbtn-cancel" onclick="hideConfirm()">Cancel</button>
+            <button class="mbtn mbtn-danger" onclick="onConfirmYes()">Yes, Delete</button>
+        </div>
+    </div>
+</div>
+
+<!-- ============ TOAST ============ -->
+<div id="toast" class="toast-notification"></div>
+
+<!-- ============ BOTTOM NAV ============ -->
+<div class="bottom-bar" id="bottomNav">
+    <button class="bb-item active" data-s="dashboardScreen" onclick="goTo('dashboardScreen')">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
+        <span>Home</span>
+    </button>
+    <button class="bb-item" data-s="salesScreen" onclick="goTo('salesScreen')">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10"/></svg>
+        <span>Sales</span>
+    </button>
+    <button class="bb-item" data-s="expenseScreen" onclick="goTo('expenseScreen')">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/></svg>
+        <span>Kharcha</span>
+    </button>
+    <button class="bb-item" data-s="udhariScreen" onclick="goTo('udhariScreen')">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+        <span>Udhari</span>
+    </button>
+    <button class="bb-item" data-s="reportScreen" onclick="goTo('reportScreen')">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+        <span>Reports</span>
+    </button>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
