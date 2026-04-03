@@ -1,11 +1,11 @@
 {
     "name": "Meri Dukaan",
     "short_name": "Meri Dukaan",
-    "description": "Roti Business Management App",
+    "description": "Roti Business Management App v4.0",
     "start_url": "./index.html",
     "display": "standalone",
     "orientation": "portrait",
-    "background_color": "#1a1a2e",
+    "background_color": "#121212",
     "theme_color": "#1a1a2e",
     "icons": [
         {

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="hi">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
@@ -12,12 +12,23 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-title" content="Meri Dukaan">
-    <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23e65100'/><text x='50' y='68' font-size='55' text-anchor='middle' fill='white'>🫓</text></svg>">
 
+    <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+    <!-- Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+
+    <!-- Charts -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+    <!-- PDF -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -32,13 +43,44 @@
     </div>
 </div>
 
+<!-- ===== GOOGLE LOGIN ===== -->
+<div id="loginScreen" class="screen login-screen">
+    <div class="login-bg"><div class="lb1"></div><div class="lb2"></div><div class="lb3"></div></div>
+    <div class="login-content">
+        <div class="login-brand">
+            <div class="login-icon">🫓</div>
+            <h1>Meri Dukaan</h1>
+            <p>Roti Business Management</p>
+        </div>
+        <div class="login-card">
+            <h2>Welcome</h2>
+            <p>Sign in to manage your business</p>
+            <button class="google-btn" id="googleBtn" onclick="googleSignIn()">
+                <svg viewBox="0 0 24 24" width="20" height="20">
+                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/>
+                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                </svg>
+                <span>Sign in with Google</span>
+            </button>
+            <div class="login-features">
+                <div class="lf-item"><span>🔒</span> Secure</div>
+                <div class="lf-item"><span>☁️</span> Cloud Sync</div>
+                <div class="lf-item"><span>📱</span> Multi-device</div>
+            </div>
+        </div>
+        <p class="login-footer">Free forever • No ads • Your data is safe</p>
+    </div>
+</div>
+
 <!-- ===== PIN SETUP ===== -->
 <div id="pinSetupScreen" class="screen pin-screen">
     <div class="pin-bg"><div class="pb1"></div><div class="pb2"></div><div class="pb3"></div></div>
     <div class="pin-card">
         <div class="pin-ic">🔐</div>
-        <h2>Create PIN</h2>
-        <p>4 digit PIN set karein</p>
+        <h2>Create Business PIN</h2>
+        <p>Set a 4-digit security PIN</p>
         <div class="pin-dots" id="setupDots"><i></i><i></i><i></i><i></i></div>
         <div class="pin-err" id="setupErr"></div>
         <div class="pin-pad" id="setupPad"></div>
@@ -51,7 +93,7 @@
     <div class="pin-card">
         <div class="pin-ic">🛡️</div>
         <h2>Confirm PIN</h2>
-        <p>Wahi PIN dubara daalein</p>
+        <p>Enter the same PIN again</p>
         <div class="pin-dots" id="confirmDots"><i></i><i></i><i></i><i></i></div>
         <div class="pin-err" id="confirmErr"></div>
         <div class="pin-pad" id="confirmPad"></div>
@@ -64,10 +106,12 @@
     <div class="pin-card">
         <div class="pin-ic">🫓</div>
         <h2>Meri Dukaan</h2>
-        <p>Apna PIN daalein</p>
+        <p>Enter your PIN to continue</p>
+        <div class="pin-user" id="pinUserInfo"></div>
         <div class="pin-dots" id="loginDots"><i></i><i></i><i></i><i></i></div>
         <div class="pin-err" id="loginErr"></div>
         <div class="pin-pad" id="loginPad"></div>
+        <button class="pin-switch" onclick="signOutAndLogin()">Switch Account</button>
     </div>
 </div>
 
@@ -82,87 +126,176 @@
                     <h1 class="dh-title">Meri Dukaan</h1>
                     <p class="dh-date" id="todayDate"></p>
                 </div>
-                <button class="lock-btn" onclick="lockApp()">🔒</button>
+                <div class="dh-actions">
+                    <button class="dh-icon-btn" id="themeTogBtn" onclick="cycleTheme()">🌙</button>
+                    <button class="dh-icon-btn" onclick="lockApp()">🔒</button>
+                </div>
             </div>
+
+            <!-- Period Toggle -->
+            <div class="period-tabs">
+                <button class="pt active" onclick="setPeriod('today',this)">Today</button>
+                <button class="pt" onclick="setPeriod('week',this)">Week</button>
+                <button class="pt" onclick="setPeriod('month',this)">Month</button>
+                <button class="pt" onclick="setPeriod('year',this)">Year</button>
+            </div>
+
             <div class="stat-grid">
-                <div class="stat-c"><div class="sc-ic sc1">🫓</div><div class="sc-info"><small>Roti Biki</small><strong id="dRoti">0</strong></div></div>
+                <div class="stat-c"><div class="sc-ic sc1">🫓</div><div class="sc-info"><small>Roti Sold</small><strong id="dRoti">0</strong></div></div>
                 <div class="stat-c"><div class="sc-ic sc2">💰</div><div class="sc-info"><small>Income</small><strong id="dIncome">₹0</strong></div></div>
-                <div class="stat-c"><div class="sc-ic sc3">🛒</div><div class="sc-info"><small>Kharcha</small><strong id="dExpense">₹0</strong></div></div>
+                <div class="stat-c"><div class="sc-ic sc3">🛒</div><div class="sc-info"><small>Expense</small><strong id="dExpense">₹0</strong></div></div>
                 <div class="stat-c" id="profitCard"><div class="sc-ic sc4">📊</div><div class="sc-info"><small>Profit</small><strong id="dProfit">₹0</strong></div></div>
             </div>
-            <div class="udh-strip">
-                <span>💳 Udhari Baaki</span>
-                <strong id="dUdhari">₹0</strong>
+
+            <div class="dash-strip-row">
+                <div class="udh-strip"><span>💳 Credit Pending</span><strong id="dCredit">₹0</strong></div>
+                <div class="waste-strip"><span>🫓 Waste</span><strong id="dWaste">0</strong></div>
             </div>
         </div>
     </div>
+
     <div class="dash-body">
         <h3 class="sec-t">Quick Actions</h3>
         <div class="act-grid">
+            <button class="act-btn" onclick="goTo('quickSaleScreen')"><div class="ab-i ab-quick">⚡</div><span>Quick Sale</span></button>
             <button class="act-btn" onclick="goTo('salesScreen')"><div class="ab-i ab1">🫓</div><span>Sales</span></button>
-            <button class="act-btn" onclick="goTo('expenseScreen')"><div class="ab-i ab2">🛒</div><span>Kharcha</span></button>
+            <button class="act-btn" onclick="goTo('expenseScreen')"><div class="ab-i ab2">🛒</div><span>Expense</span></button>
             <button class="act-btn" onclick="goTo('customerScreen')"><div class="ab-i ab3">👥</div><span>Customers</span></button>
-            <button class="act-btn" onclick="goTo('udhariScreen')"><div class="ab-i ab4">💳</div><span>Udhari</span></button>
-            <button class="act-btn" onclick="goTo('reportScreen')"><div class="ab-i ab5">📊</div><span>Reports</span></button>
+            <button class="act-btn" onclick="goTo('wasteScreen')"><div class="ab-i ab-waste">🫓</div><span>Waste</span></button>
             <button class="act-btn" onclick="goTo('settingScreen')"><div class="ab-i ab6">⚙️</div><span>Settings</span></button>
         </div>
+
         <h3 class="sec-t">Today's Activity</h3>
         <div class="act-wrap">
-            <div class="aw-card"><div class="aw-hdr"><span class="aw-dot green"></span><span class="aw-lbl">Recent Sales</span></div><div id="recentSales"><div class="no-data">Koi sale nahi hui aaj</div></div></div>
-            <div class="aw-card"><div class="aw-hdr"><span class="aw-dot red"></span><span class="aw-lbl">Recent Kharcha</span></div><div id="recentExp"><div class="no-data">Koi kharcha nahi aaj</div></div></div>
+            <div class="aw-card">
+                <div class="aw-hdr"><span class="aw-dot green"></span><span class="aw-lbl">Recent Sales</span></div>
+                <div id="recentSales"><div class="no-data">No sales today</div></div>
+            </div>
+            <div class="aw-card">
+                <div class="aw-hdr"><span class="aw-dot red"></span><span class="aw-lbl">Recent Expenses</span></div>
+                <div id="recentExp"><div class="no-data">No expenses today</div></div>
+            </div>
         </div>
     </div>
 </div>
 
-<!-- ===== CUSTOMERS ===== -->
-<div id="customerScreen" class="screen">
-    <div class="pg-top"><button class="pg-back" onclick="goTo('dashboardScreen')">‹</button><h2>Customers</h2><button class="pg-act" onclick="openCustomerForm()">+ Add</button></div>
-    <div class="pg-sub" id="custCount">0 Customers</div>
-    <div class="pg-body" id="customerList"></div>
+<!-- ===== QUICK SALE ===== -->
+<div id="quickSaleScreen" class="screen">
+    <div class="pg-top">
+        <button class="pg-back" onclick="goTo('dashboardScreen')">‹</button>
+        <h2>⚡ Quick Daily Orders</h2>
+        <div></div>
+    </div>
+    <div class="quick-date"><span id="quickDateLabel"></span></div>
+    <div class="quick-summary">
+        <div class="qs-item"><strong id="qsDone">0</strong><small>Done</small></div>
+        <div class="sm-sep"></div>
+        <div class="qs-item"><strong id="qsPending">0</strong><small>Pending</small></div>
+        <div class="sm-sep"></div>
+        <div class="qs-item"><strong class="green" id="qsTotal">₹0</strong><small>Total</small></div>
+    </div>
+    <div class="quick-actions-bar">
+        <button class="qa-btn" onclick="markAllFixedDone()">✅ Mark All Fixed as Done</button>
+    </div>
+    <div class="pg-body" id="quickSaleList"></div>
 </div>
 
 <!-- ===== SALES ===== -->
 <div id="salesScreen" class="screen">
-    <div class="pg-top"><button class="pg-back" onclick="goTo('dashboardScreen')">‹</button><h2>Sales</h2><button class="pg-act" onclick="openSaleForm()">+ Add</button></div>
+    <div class="pg-top">
+        <button class="pg-back" onclick="goTo('dashboardScreen')">‹</button>
+        <h2>Sales</h2>
+        <button class="pg-act" onclick="openSaleForm()">+ Add</button>
+    </div>
     <div class="dt-nav">
         <button class="dt-arr" onclick="changeSalesDate(-1)">‹</button>
-        <input type="date" id="salesDate" class="dt-inp" onchange="loadSalesForDate()">
+        <button class="dt-pick" id="salesDateBtn" onclick="openDatePicker('sales')"></button>
         <button class="dt-arr" onclick="changeSalesDate(1)">›</button>
     </div>
+    <input type="hidden" id="salesDate">
     <div class="sum-bar">
-        <div class="sm-i"><strong id="sRoti">0</strong><small>Roti</small></div><div class="sm-sep"></div>
-        <div class="sm-i"><strong class="green" id="sIncome">₹0</strong><small>Income</small></div><div class="sm-sep"></div>
-        <div class="sm-i"><strong id="sCash">₹0</strong><small>Cash+UPI</small></div><div class="sm-sep"></div>
-        <div class="sm-i"><strong class="amber" id="sUdhari">₹0</strong><small>Udhari</small></div>
+        <div class="sm-i"><strong id="sRoti">0</strong><small>Roti</small></div>
+        <div class="sm-sep"></div>
+        <div class="sm-i"><strong class="green" id="sIncome">₹0</strong><small>Income</small></div>
+        <div class="sm-sep"></div>
+        <div class="sm-i"><strong id="sCash">₹0</strong><small>Cash+UPI</small></div>
+        <div class="sm-sep"></div>
+        <div class="sm-i"><strong class="amber" id="sCredit">₹0</strong><small>Credit</small></div>
     </div>
     <div class="pg-body" id="salesList"></div>
 </div>
 
 <!-- ===== EXPENSE ===== -->
 <div id="expenseScreen" class="screen">
-    <div class="pg-top"><button class="pg-back" onclick="goTo('dashboardScreen')">‹</button><h2>Kharcha</h2><button class="pg-act" onclick="openExpenseForm()">+ Add</button></div>
+    <div class="pg-top">
+        <button class="pg-back" onclick="goTo('dashboardScreen')">‹</button>
+        <h2>Expenses</h2>
+        <button class="pg-act" onclick="openExpenseForm()">+ Add</button>
+    </div>
     <div class="dt-nav">
         <button class="dt-arr" onclick="changeExpDate(-1)">‹</button>
-        <input type="date" id="expDate" class="dt-inp" onchange="loadExpForDate()">
+        <button class="dt-pick" id="expDateBtn" onclick="openDatePicker('expense')"></button>
         <button class="dt-arr" onclick="changeExpDate(1)">›</button>
     </div>
+    <input type="hidden" id="expDate">
     <div class="sum-bar">
-        <div class="sm-i"><strong class="red" id="eTotal">₹0</strong><small>Total Kharcha</small></div><div class="sm-sep"></div>
+        <div class="sm-i"><strong class="red" id="eTotal">₹0</strong><small>Total Expense</small></div>
+        <div class="sm-sep"></div>
         <div class="sm-i"><strong id="eCount">0</strong><small>Items</small></div>
     </div>
     <div class="pg-body" id="expList"></div>
 </div>
 
-<!-- ===== UDHARI ===== -->
-<div id="udhariScreen" class="screen">
-    <div class="pg-top"><button class="pg-back" onclick="goTo('dashboardScreen')">‹</button><h2>Udhari Register</h2><div></div></div>
-    <div class="udh-hero"><p>Total Udhari Baaki</p><h2 id="uTotalPending">₹0</h2></div>
-    <div class="pg-body" id="udhariList"></div>
+<!-- ===== WASTE ===== -->
+<div id="wasteScreen" class="screen">
+    <div class="pg-top">
+        <button class="pg-back" onclick="goTo('dashboardScreen')">‹</button>
+        <h2>Waste Tracking</h2>
+        <button class="pg-act" onclick="openWasteForm()">+ Add</button>
+    </div>
+    <div class="dt-nav">
+        <button class="dt-arr" onclick="changeWasteDate(-1)">‹</button>
+        <button class="dt-pick" id="wasteDateBtn" onclick="openDatePicker('waste')"></button>
+        <button class="dt-arr" onclick="changeWasteDate(1)">›</button>
+    </div>
+    <input type="hidden" id="wasteDate">
+    <div class="waste-hero">
+        <div class="wh-item"><strong id="wQty">0</strong><small>Roti Wasted</small></div>
+        <div class="sm-sep" style="background:rgba(255,255,255,.2)"></div>
+        <div class="wh-item"><strong id="wCost">₹0</strong><small>Estimated Loss</small></div>
+    </div>
+    <div class="pg-body" id="wasteList"></div>
+</div>
+
+<!-- ===== CUSTOMERS ===== -->
+<div id="customerScreen" class="screen">
+    <div class="pg-top">
+        <button class="pg-back" onclick="goTo('dashboardScreen')">‹</button>
+        <h2>Customers</h2>
+        <button class="pg-act" onclick="openCustomerForm()">+ Add</button>
+    </div>
+    <div class="pg-sub" id="custCount">0 Customers</div>
+    <div class="pg-body" id="customerList"></div>
+</div>
+
+<!-- ===== CREDIT / UDHARI ===== -->
+<div id="creditScreen" class="screen">
+    <div class="pg-top">
+        <button class="pg-back" onclick="goTo('dashboardScreen')">‹</button>
+        <h2>Credit Register</h2>
+        <div></div>
+    </div>
+    <div class="udh-hero"><p>Total Credit Pending</p><h2 id="cTotalPending">₹0</h2></div>
+    <div class="pg-body" id="creditList"></div>
 </div>
 
 <!-- ===== REPORTS ===== -->
 <div id="reportScreen" class="screen">
-    <div class="pg-top"><button class="pg-back" onclick="goTo('dashboardScreen')">‹</button><h2>Reports</h2><div></div></div>
+    <div class="pg-top">
+        <button class="pg-back" onclick="goTo('dashboardScreen')">‹</button>
+        <h2>Reports</h2>
+        <div></div>
+    </div>
     <div class="rp-tabs">
         <button class="rp-t active" onclick="switchReport('daily',this)">Daily</button>
         <button class="rp-t" onclick="switchReport('weekly',this)">Weekly</button>
@@ -170,48 +303,92 @@
     </div>
     <div class="dt-nav">
         <button class="dt-arr" onclick="changeReportDate(-1)">‹</button>
-        <input type="date" id="reportDate" class="dt-inp" onchange="loadReport()">
+        <button class="dt-pick" id="reportDateBtn" onclick="openDatePicker('report')"></button>
         <button class="dt-arr" onclick="changeReportDate(1)">›</button>
     </div>
+
+    <!-- Charts -->
+    <div class="chart-section">
+        <div class="chart-card"><h4 class="chart-title">📊 Sales Overview</h4><div class="chart-wrap"><canvas id="salesChart"></canvas></div></div>
+        <div class="chart-card"><h4 class="chart-title">🥧 Expense Breakdown</h4><div class="chart-wrap chart-sm"><canvas id="expenseChart"></canvas></div></div>
+    </div>
+
     <div id="reportContent" class="pg-body rp-body"></div>
-    <div class="pdf-wrap"><button class="pdf-btn" onclick="generatePDF()">📄 PDF Download</button></div>
+    <div class="pdf-wrap"><button class="pdf-btn" onclick="generatePDF()">📄 Download PDF Report</button></div>
 </div>
 
 <!-- ===== SETTINGS ===== -->
 <div id="settingScreen" class="screen">
-    <div class="pg-top"><button class="pg-back" onclick="goTo('dashboardScreen')">‹</button><h2>Settings</h2><div></div></div>
+    <div class="pg-top">
+        <button class="pg-back" onclick="goTo('dashboardScreen')">‹</button>
+        <h2>Settings</h2>
+        <div></div>
+    </div>
     <div class="set-list">
-        <div class="set-sec-title">🔄 Multi-Device Sync</div>
-        <div class="set-i sync-card" onclick="syncShare()">
-            <div class="si-ic si-green">📤</div>
-            <div class="si-tx"><h4>Share Data to Other Phone</h4><p>WhatsApp/Email se data bhejein</p></div>
+        <!-- User Info -->
+        <div class="set-user" id="setUserInfo">
+            <img class="su-avatar" id="suAvatar" src="" alt="">
+            <div class="su-info"><h4 id="suName">User</h4><p id="suEmail">email@gmail.com</p></div>
+            <span class="su-role" id="suRole">Owner</span>
+        </div>
+
+        <!-- Appearance -->
+        <div class="set-sec-title">🎨 Appearance</div>
+        <div class="set-i" onclick="cycleTheme()">
+            <div class="si-ic si-purple" id="setThemeIc">🌙</div>
+            <div class="si-tx"><h4>Theme</h4><p id="setThemeLabel">System Default</p></div>
+            <span class="theme-badge" id="setThemeBadge">Auto</span>
+        </div>
+
+        <!-- Team -->
+        <div class="set-sec-title">👥 Team Members</div>
+        <div class="set-i" onclick="openTeamManager()">
+            <div class="si-ic si-blue">👥</div>
+            <div class="si-tx"><h4>Manage Team</h4><p>Add family members for multi-device</p></div>
+            <span class="si-go">›</span>
+        </div>
+
+        <!-- Cloud Sync -->
+        <div class="set-sec-title">☁️ Data & Sync</div>
+        <div class="set-i">
+            <div class="si-ic si-green">☁️</div>
+            <div class="si-tx"><h4>Cloud Sync</h4><p id="syncStatus">Connected • Real-time active</p></div>
+            <span class="sync-dot online" id="syncDot"></span>
+        </div>
+        <div class="set-i" onclick="exportData()">
+            <div class="si-ic si-green">💾</div>
+            <div class="si-tx"><h4>Download Backup</h4><p>Save data as JSON file</p></div>
             <span class="si-go">›</span>
         </div>
         <div class="set-i" onclick="document.getElementById('importFile').click()">
             <div class="si-ic si-purple">📥</div>
-            <div class="si-tx"><h4>Import Data from Other Phone</h4><p>Doosre phone ka data laayein</p></div>
+            <div class="si-tx"><h4>Import Old Data</h4><p>Import from v3 backup file</p></div>
             <span class="si-go">›</span>
         </div>
         <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(event)">
-        <div class="sync-info" id="syncInfo"></div>
 
-        <div class="set-sec-title">⚙️ App Settings</div>
+        <!-- Security -->
+        <div class="set-sec-title">🔐 Security</div>
         <div class="set-i" onclick="showChangePinUI()">
             <div class="si-ic si-blue">🔐</div>
-            <div class="si-tx"><h4>Change PIN</h4><p>Security PIN badlein</p></div>
+            <div class="si-tx"><h4>Change PIN</h4><p>Update security PIN</p></div>
             <span class="si-go">›</span>
         </div>
-        <div class="set-i" onclick="exportData()">
-            <div class="si-ic si-green">💾</div>
-            <div class="si-tx"><h4>Download Backup</h4><p>Data file download karein</p></div>
-            <span class="si-go">›</span>
-        </div>
+
+        <!-- Danger -->
+        <div class="set-sec-title">⚠️ Danger Zone</div>
         <div class="set-i danger" onclick="resetAllData()">
             <div class="si-ic si-red">🗑️</div>
-            <div class="si-tx"><h4>Delete All Data</h4><p>Saara data permanently delete</p></div>
+            <div class="si-tx"><h4>Delete All Data</h4><p>Permanently remove all data</p></div>
             <span class="si-go">›</span>
         </div>
-        <div class="app-foot"><p>🫓 Meri Dukaan v3.0</p><p>Made for Hasan Bhai</p></div>
+        <div class="set-i danger" onclick="signOutApp()">
+            <div class="si-ic si-red">🚪</div>
+            <div class="si-tx"><h4>Sign Out</h4><p>Log out from this device</p></div>
+            <span class="si-go">›</span>
+        </div>
+
+        <div class="app-foot"><p>🫓 Meri Dukaan v4.0</p><p>Cloud-powered Business Management</p></div>
     </div>
 </div>
 
@@ -221,14 +398,17 @@
     <div class="frm-body">
         <form id="customerForm" onsubmit="saveCustomer(event)">
             <input type="hidden" id="cfId">
-            <div class="fg"><label>Customer Ka Naam *</label><input type="text" id="cfName" required placeholder="Jaise: Sharma Ji" autocomplete="off"></div>
-            <div class="fg"><label>Rate Per Roti (₹) *</label><input type="number" id="cfRate" required placeholder="Jaise: 5" step="0.5" min="1" inputmode="decimal"></div>
+            <div class="fg"><label>Customer Name *</label><input type="text" id="cfName" required placeholder="e.g. Sharma Ji" autocomplete="off"></div>
+            <div class="fg"><label>Rate Per Roti (₹) *</label><input type="number" id="cfRate" required placeholder="e.g. 5" step="0.5" min="1" inputmode="decimal"></div>
             <div class="fg"><label>Phone Number</label><input type="tel" id="cfPhone" placeholder="Optional" inputmode="tel"></div>
             <div class="fg"><label>Order Type *</label>
-                <div class="tgl-row"><button type="button" class="tgl active" onclick="setOrderType('fixed',this)">Fixed Daily</button><button type="button" class="tgl" onclick="setOrderType('variable',this)">Roz Alag</button></div>
+                <div class="tgl-row">
+                    <button type="button" class="tgl active" onclick="setOrderType('fixed',this)">Fixed Daily</button>
+                    <button type="button" class="tgl" onclick="setOrderType('variable',this)">Variable</button>
+                </div>
                 <input type="hidden" id="cfOrderType" value="fixed">
             </div>
-            <div class="fg" id="fixedQtyGroup"><label>Daily Kitni Roti *</label><input type="number" id="cfQty" placeholder="Jaise: 80" min="1" inputmode="numeric"></div>
+            <div class="fg" id="fixedQtyGroup"><label>Daily Roti Count *</label><input type="number" id="cfQty" placeholder="e.g. 80" min="1" inputmode="numeric"></div>
             <button type="submit" class="pri-btn">💾 Save Customer</button>
         </form>
     </div>
@@ -242,20 +422,46 @@
             <input type="hidden" id="sfId">
             <input type="hidden" id="sfCustomerId">
             <input type="hidden" id="sfCustomerName">
-            <div class="fg"><label>Customer *</label>
+
+            <!-- Sale Type: Regular or Walk-in -->
+            <div class="fg"><label>Customer Type</label>
+                <div class="tgl-row">
+                    <button type="button" class="tgl active" onclick="setSaleType('regular',this)">👤 Regular</button>
+                    <button type="button" class="tgl" onclick="setSaleType('walkin',this)">🚶 Walk-in</button>
+                </div>
+                <input type="hidden" id="sfType" value="regular">
+            </div>
+
+            <!-- Regular: Customer Picker -->
+            <div class="fg" id="sfCustGroup">
+                <label>Customer *</label>
                 <button type="button" class="picker-btn" id="sfCustBtn" onclick="openCustPicker('sale')">
-                    <span id="sfCustLabel">-- Customer Chunein --</span><span class="pk-arrow">›</span>
+                    <span id="sfCustLabel">-- Select Customer --</span><span class="pk-arrow">›</span>
                 </button>
             </div>
-            <div class="fg-row">
-                <div class="fg"><label>Rate (₹)</label><input type="number" id="sfRate" step="0.5" min="1" inputmode="decimal" oninput="calcSaleTotal()" readonly></div>
-                <div class="fg"><label>Quantity *</label><input type="number" id="sfQty" required min="1" inputmode="numeric" oninput="calcSaleTotal()" placeholder="Roti"></div>
+
+            <!-- Walk-in: Name Input -->
+            <div class="fg" id="sfWalkinGroup" style="display:none">
+                <label>Name (Optional)</label>
+                <input type="text" id="sfWalkinName" placeholder="e.g. Counter Customer" autocomplete="off">
             </div>
-            <div class="total-box"><span>Total</span><span class="tb-val" id="sfTotal">₹0</span></div>
-            <div class="fg"><label>Payment Type *</label>
-                <div class="tgl-row tgl3"><button type="button" class="tgl active" onclick="setPayType('sfPay','cash',this)">💵 Cash</button><button type="button" class="tgl" onclick="setPayType('sfPay','upi',this)">📱 UPI</button><button type="button" class="tgl" onclick="setPayType('sfPay','udhari',this)">💳 Udhari</button></div>
+
+            <div class="fg-row">
+                <div class="fg"><label>Rate (₹)</label><input type="number" id="sfRate" step="0.5" min="1" inputmode="decimal" oninput="calcSaleTotal()"></div>
+                <div class="fg"><label>Quantity *</label><input type="number" id="sfQty" required min="1" inputmode="numeric" oninput="calcSaleTotal()" placeholder="Roti count"></div>
+            </div>
+
+            <div class="total-box"><span>Total Amount</span><span class="tb-val" id="sfTotal">₹0</span></div>
+
+            <div class="fg"><label>Payment Method *</label>
+                <div class="tgl-row tgl3">
+                    <button type="button" class="tgl active" onclick="setPayType('sfPay','cash',this)">💵 Cash</button>
+                    <button type="button" class="tgl" onclick="setPayType('sfPay','upi',this)">📱 UPI</button>
+                    <button type="button" class="tgl" onclick="setPayType('sfPay','credit',this)">💳 Credit</button>
+                </div>
                 <input type="hidden" id="sfPay" value="cash">
             </div>
+
             <button type="submit" class="pri-btn">💾 Save Sale</button>
         </form>
     </div>
@@ -263,7 +469,7 @@
 
 <!-- ===== EXPENSE FORM ===== -->
 <div id="expFormOverlay" class="overlay">
-    <div class="pg-top"><button class="pg-back" onclick="closeOverlay('expFormOverlay')">‹</button><h2 id="efTitle">New Kharcha</h2><div></div></div>
+    <div class="pg-top"><button class="pg-back" onclick="closeOverlay('expFormOverlay')">‹</button><h2 id="efTitle">New Expense</h2><div></div></div>
     <div class="frm-body">
         <form id="expForm" onsubmit="saveExpense(event)">
             <input type="hidden" id="efId">
@@ -274,38 +480,68 @@
                     <button type="button" class="cat" onclick="setExpCat('gas',this)">🔥 Gas</button>
                     <button type="button" class="cat" onclick="setExpCat('poly',this)">🛍️ Poly</button>
                     <button type="button" class="cat" onclick="setExpCat('other',this)">📦 Other</button>
-                </div><input type="hidden" id="efCat" value="atta">
+                </div>
+                <input type="hidden" id="efCat" value="atta">
             </div>
-            <div class="fg" id="efDetailGrp" style="display:none"><label>Description</label><input type="text" id="efDetail" placeholder="Kya kharcha"></div>
-            <div class="fg" id="efWeightGrp"><label>Weight (KG)</label><input type="number" id="efWeight" placeholder="Jaise: 50" min="0.1" step="0.1" inputmode="decimal" oninput="calcExpRate()"></div>
-            <div class="fg"><label>Amount (₹) *</label><input type="number" id="efAmount" required placeholder="Kitne rupay" min="1" inputmode="numeric" oninput="calcExpRate()"></div>
+            <div class="fg" id="efDetailGrp" style="display:none"><label>Description</label><input type="text" id="efDetail" placeholder="What was the expense"></div>
+            <div class="fg" id="efWeightGrp"><label>Weight (KG)</label><input type="number" id="efWeight" placeholder="e.g. 50" min="0.1" step="0.1" inputmode="decimal"></div>
+            <div class="fg"><label>Amount (₹) *</label><input type="number" id="efAmount" required placeholder="Amount in rupees" min="1" inputmode="numeric"></div>
             <div id="efRateInfo" class="rate-box" style="display:none"></div>
-            <div class="fg"><label>Payment</label>
-                <div class="tgl-row"><button type="button" class="tgl active" onclick="setPayType('efPay','cash',this)">💵 Cash</button><button type="button" class="tgl" onclick="setPayType('efPay','upi',this)">📱 UPI</button></div>
+            <div class="fg"><label>Payment Method</label>
+                <div class="tgl-row">
+                    <button type="button" class="tgl active" onclick="setPayType('efPay','cash',this)">💵 Cash</button>
+                    <button type="button" class="tgl" onclick="setPayType('efPay','upi',this)">📱 UPI</button>
+                </div>
                 <input type="hidden" id="efPay" value="cash">
             </div>
-            <button type="submit" class="pri-btn">💾 Save Kharcha</button>
+            <button type="submit" class="pri-btn">💾 Save Expense</button>
         </form>
     </div>
 </div>
 
-<!-- ===== UDHARI PAY ===== -->
-<div id="udhariPayOverlay" class="overlay">
-    <div class="pg-top"><button class="pg-back" onclick="closeOverlay('udhariPayOverlay')">‹</button><h2 id="upTitle">Udhari</h2><div></div></div>
+<!-- ===== WASTE FORM ===== -->
+<div id="wasteFormOverlay" class="overlay">
+    <div class="pg-top"><button class="pg-back" onclick="closeOverlay('wasteFormOverlay')">‹</button><h2>Add Waste Entry</h2><div></div></div>
     <div class="frm-body">
-        <div id="upDetail" class="udh-detail"></div>
-        <h3 class="sec-t" style="padding-left:0">Payment Karein</h3>
-        <form id="upForm" onsubmit="saveUdhariPayment(event)">
-            <input type="hidden" id="upCustId"><input type="hidden" id="upCustName">
-            <div class="fg"><label>Amount (₹) *</label><input type="number" id="upAmount" required min="1" inputmode="numeric" placeholder="Kitna paisa aaya"></div>
-            <div class="fg"><label>Mode</label>
-                <div class="tgl-row"><button type="button" class="tgl active" onclick="setPayType('upPay','cash',this)">💵 Cash</button><button type="button" class="tgl" onclick="setPayType('upPay','upi',this)">📱 UPI</button></div>
-                <input type="hidden" id="upPay" value="cash">
+        <form id="wasteForm" onsubmit="saveWaste(event)">
+            <input type="hidden" id="wfId">
+            <div class="fg"><label>Roti Quantity *</label><input type="number" id="wfQty" required placeholder="How many roti wasted" min="1" inputmode="numeric"></div>
+            <div class="fg"><label>Reason *</label>
+                <div class="cat-row">
+                    <button type="button" class="cat active" onclick="setWasteReason('burnt',this)">🔥 Burnt</button>
+                    <button type="button" class="cat" onclick="setWasteReason('extra',this)">📦 Extra</button>
+                    <button type="button" class="cat" onclick="setWasteReason('returned',this)">↩️ Returned</button>
+                    <button type="button" class="cat" onclick="setWasteReason('other',this)">❓ Other</button>
+                </div>
+                <input type="hidden" id="wfReason" value="burnt">
+            </div>
+            <div class="fg"><label>Notes (Optional)</label><input type="text" id="wfNotes" placeholder="Any details"></div>
+            <button type="submit" class="pri-btn">💾 Save Waste Entry</button>
+        </form>
+    </div>
+</div>
+
+<!-- ===== CREDIT PAY ===== -->
+<div id="creditPayOverlay" class="overlay">
+    <div class="pg-top"><button class="pg-back" onclick="closeOverlay('creditPayOverlay')">‹</button><h2 id="crpTitle">Credit Details</h2><div></div></div>
+    <div class="frm-body">
+        <div id="crpDetail" class="udh-detail"></div>
+        <h3 class="sec-t" style="padding-left:0">Record Payment</h3>
+        <form id="crpForm" onsubmit="saveCreditPayment(event)">
+            <input type="hidden" id="crpCustId">
+            <input type="hidden" id="crpCustName">
+            <div class="fg"><label>Amount (₹) *</label><input type="number" id="crpAmount" required min="1" inputmode="numeric" placeholder="Payment amount"></div>
+            <div class="fg"><label>Payment Mode</label>
+                <div class="tgl-row">
+                    <button type="button" class="tgl active" onclick="setPayType('crpPay','cash',this)">💵 Cash</button>
+                    <button type="button" class="tgl" onclick="setPayType('crpPay','upi',this)">📱 UPI</button>
+                </div>
+                <input type="hidden" id="crpPay" value="cash">
             </div>
             <button type="submit" class="pri-btn">💰 Save Payment</button>
         </form>
         <h3 class="sec-t" style="padding-left:0;margin-top:20px">Payment History</h3>
-        <div id="upHistory"></div>
+        <div id="crpHistory"></div>
     </div>
 </div>
 
@@ -314,22 +550,69 @@
     <div class="pg-top"><button class="pg-back" onclick="closeOverlay('changePinOverlay')">‹</button><h2>Change PIN</h2><div></div></div>
     <div class="frm-body">
         <form onsubmit="saveNewPin(event)">
-            <div class="fg"><label>Purana PIN</label><input type="password" id="cpOld" required maxlength="4" pattern="[0-9]{4}" inputmode="numeric" placeholder="****"></div>
-            <div class="fg"><label>Naya PIN</label><input type="password" id="cpNew" required maxlength="4" pattern="[0-9]{4}" inputmode="numeric" placeholder="****"></div>
-            <div class="fg"><label>Naya PIN Confirm</label><input type="password" id="cpConfirm" required maxlength="4" pattern="[0-9]{4}" inputmode="numeric" placeholder="****"></div>
-            <button type="submit" class="pri-btn">🔐 Change PIN</button>
+            <div class="fg"><label>Current PIN</label><input type="password" id="chpOld" required maxlength="4" pattern="[0-9]{4}" inputmode="numeric" placeholder="****"></div>
+            <div class="fg"><label>New PIN</label><input type="password" id="chpNew" required maxlength="4" pattern="[0-9]{4}" inputmode="numeric" placeholder="****"></div>
+            <div class="fg"><label>Confirm New PIN</label><input type="password" id="chpConfirm" required maxlength="4" pattern="[0-9]{4}" inputmode="numeric" placeholder="****"></div>
+            <button type="submit" class="pri-btn">🔐 Update PIN</button>
         </form>
     </div>
 </div>
 
-<!-- ===== CUSTOMER PICKER BOTTOM SHEET ===== -->
+<!-- ===== TEAM MANAGER ===== -->
+<div id="teamOverlay" class="overlay">
+    <div class="pg-top"><button class="pg-back" onclick="closeOverlay('teamOverlay')">‹</button><h2>Team Members</h2><button class="pg-act" onclick="showAddMember()">+ Add</button></div>
+    <div class="frm-body">
+        <div class="team-info"><p>📱 Add family members so they can access the same data on their phones using their Google account.</p></div>
+        <div id="teamMemberList"></div>
+        <div id="addMemberForm" style="display:none">
+            <h3 class="sec-t" style="padding-left:0">Add New Member</h3>
+            <form onsubmit="addTeamMember(event)">
+                <div class="fg"><label>Email Address *</label><input type="email" id="tmEmail" required placeholder="member@gmail.com"></div>
+                <div class="fg"><label>Role *</label>
+                    <div class="tgl-row">
+                        <button type="button" class="tgl active" onclick="setPayType('tmRole','admin',this)">👑 Admin</button>
+                        <button type="button" class="tgl" onclick="setPayType('tmRole','staff',this)">👤 Staff</button>
+                    </div>
+                    <input type="hidden" id="tmRole" value="admin">
+                </div>
+                <div class="role-info"><p><strong>👑 Admin:</strong> Full access — add, edit, delete</p><p><strong>👤 Staff:</strong> Can only add entries</p></div>
+                <button type="submit" class="pri-btn">👥 Add Member</button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- ===== CUSTOMER PICKER ===== -->
 <div id="custPickerSheet" class="bts">
     <div class="bts-overlay" onclick="closeCustPicker()"></div>
     <div class="bts-panel">
         <div class="bts-handle"></div>
-        <div class="bts-hdr"><h3>Customer Select Karein</h3><button class="bts-close" onclick="closeCustPicker()">✕</button></div>
+        <div class="bts-hdr"><h3>Select Customer</h3><button class="bts-close" onclick="closeCustPicker()">✕</button></div>
         <input type="text" class="bts-search" id="custSearch" placeholder="🔍 Search customer..." oninput="filterCustPicker(this.value)">
         <div class="bts-list" id="custPickerList"></div>
+    </div>
+</div>
+
+<!-- ===== DATE PICKER ===== -->
+<div id="datePickerSheet" class="bts">
+    <div class="bts-overlay" onclick="closeDatePicker()"></div>
+    <div class="bts-panel">
+        <div class="bts-handle"></div>
+        <div class="bts-hdr"><h3>Select Date</h3><button class="bts-close" onclick="closeDatePicker()">✕</button></div>
+        <div class="dp-quick">
+            <button class="dp-qb" onclick="pickQuickDate('today')">Today</button>
+            <button class="dp-qb" onclick="pickQuickDate('yesterday')">Yesterday</button>
+            <button class="dp-qb" onclick="pickQuickDate('week')">This Week Start</button>
+        </div>
+        <div class="dp-cal">
+            <div class="dp-nav">
+                <button class="dp-nav-btn" onclick="dpMonth(-1)">‹</button>
+                <span class="dp-month" id="dpMonthLabel"></span>
+                <button class="dp-nav-btn" onclick="dpMonth(1)">›</button>
+            </div>
+            <div class="dp-weekdays"><span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span><span>Su</span></div>
+            <div class="dp-days" id="dpDays"></div>
+        </div>
     </div>
 </div>
 
@@ -339,7 +622,10 @@
         <div class="m-icon" id="confirmIcon"></div>
         <h3 id="confirmTitle"></h3>
         <p id="confirmMsg"></p>
-        <div class="m-btns"><button class="m-btn m-no" onclick="hideConfirm()">Cancel</button><button class="m-btn m-yes" onclick="onConfirmYes()">Confirm</button></div>
+        <div class="m-btns">
+            <button class="m-btn m-no" onclick="hideConfirm()">Cancel</button>
+            <button class="m-btn m-yes" onclick="onConfirmYes()">Confirm</button>
+        </div>
     </div>
 </div>
 
@@ -349,9 +635,9 @@
 <!-- ===== BOTTOM NAV ===== -->
 <div class="bnav" id="bottomNav">
     <button class="bn-i active" data-s="dashboardScreen" onclick="goTo('dashboardScreen')"><span class="bn-ic">🏠</span><span>Home</span></button>
+    <button class="bn-i" data-s="quickSaleScreen" onclick="goTo('quickSaleScreen')"><span class="bn-ic">⚡</span><span>Quick</span></button>
     <button class="bn-i" data-s="salesScreen" onclick="goTo('salesScreen')"><span class="bn-ic">🫓</span><span>Sales</span></button>
-    <button class="bn-i" data-s="expenseScreen" onclick="goTo('expenseScreen')"><span class="bn-ic">🛒</span><span>Kharcha</span></button>
-    <button class="bn-i" data-s="udhariScreen" onclick="goTo('udhariScreen')"><span class="bn-ic">💳</span><span>Udhari</span></button>
+    <button class="bn-i" data-s="creditScreen" onclick="goTo('creditScreen')"><span class="bn-ic">💳</span><span>Credit</span></button>
     <button class="bn-i" data-s="reportScreen" onclick="goTo('reportScreen')"><span class="bn-ic">📊</span><span>Reports</span></button>
 </div>
 
