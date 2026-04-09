@@ -4,8 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
     <title>Meri Dukaan — Business Manager</title>
-    <meta name="description" content="Meri Dukaan v5 — Roti Business Management App. Track daily sales, expenses, customer credit, waste and generate PDF reports.">
+
+    <!-- SEO & Meta -->
+    <meta name="description" content="Meri Dukaan — Roti Business Management App. Track daily sales, expenses, customer credit, waste and generate PDF reports. Free, offline-ready PWA.">
     <meta name="author" content="Meri Dukaan">
+    <meta name="keywords" content="roti business, sales tracker, expense manager, credit register, business app">
 
     <!-- PWA -->
     <link rel="manifest" href="manifest.json">
@@ -14,15 +17,21 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-title" content="Meri Dukaan">
+    <meta name="application-name" content="Meri Dukaan">
+    <meta name="msapplication-TileColor" content="#e65100">
+    <meta name="msapplication-navbutton-color" content="#1a1a2e">
 
     <!-- Favicons -->
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23e65100'/><text x='50' y='68' font-size='55' text-anchor='middle' fill='white'>🫓</text></svg>">
+    <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
     <link rel="apple-touch-icon" sizes="192x192" href="icons/icon-192.png">
+    <link rel="apple-touch-icon" sizes="512x512" href="icons/icon-512.png">
 
-    <!-- Preconnect -->
+    <!-- Preconnect for performance -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
 
     <!-- Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
@@ -32,44 +41,58 @@
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 
-    <!-- Charts -->
+    <!-- Charts (defer — not critical for first paint) -->
     <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 
-    <!-- PDF -->
+    <!-- PDF (defer — only needed when user clicks export) -->
     <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
-
-    <!-- ★ v5 NEW: Confetti for debt clearance celebration -->
-    <script defer src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
 
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
+<!-- No JS Fallback -->
 <noscript>
-    <div style="text-align:center;padding:60px 24px;font-family:'Inter',sans-serif;background:#121217;color:#e0e0e0;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center">
+    <div style="text-align:center;padding:60px 24px;font-family:'Inter',sans-serif;background:#121212;color:#e0e0e0;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center">
         <div style="font-size:64px;margin-bottom:16px">🫓</div>
-        <h2 style="margin-bottom:8px">Meri Dukaan</h2>
-        <p style="color:#a0a0a0;font-size:14px;max-width:300px;line-height:1.6">Please enable JavaScript in your browser settings to use this app.</p>
+        <h2 style="margin-bottom:8px;font-size:22px">Meri Dukaan</h2>
+        <p style="color:#a0a0a0;font-size:14px;max-width:300px;line-height:1.6">
+            JavaScript enable karein apne browser mein is app ko use karne ke liye.
+            <br><br>
+            Please enable JavaScript in your browser settings to use this app.
+        </p>
     </div>
 </noscript>
 
 
-<!-- SPLASH SCREEN -->
+<!-- ======================================================
+     SPLASH SCREEN
+     ====================================================== -->
 <div id="splashScreen" class="screen splash-screen active" role="status" aria-label="Loading app">
     <div class="splash-content">
-        <div class="splash-icon-wrap"><div class="splash-roti">🫓</div></div>
+        <div class="splash-icon-wrap">
+            <div class="splash-roti">🫓</div>
+        </div>
         <h1 class="splash-title">Meri Dukaan</h1>
         <p class="splash-sub">Business Management</p>
-        <div class="splash-loader"><div class="splash-bar"></div></div>
-        <p class="splash-version">v5.0</p>
+        <div class="splash-loader">
+            <div class="splash-bar"></div>
+        </div>
+        <p class="splash-version">v4.0</p>
     </div>
 </div>
 
 
-<!-- GOOGLE LOGIN SCREEN -->
+<!-- ======================================================
+     GOOGLE LOGIN SCREEN
+     ====================================================== -->
 <div id="loginScreen" class="screen login-screen" role="main">
-    <div class="login-bg" aria-hidden="true"><div class="lb1"></div><div class="lb2"></div><div class="lb3"></div></div>
+    <div class="login-bg" aria-hidden="true">
+        <div class="lb1"></div>
+        <div class="lb2"></div>
+        <div class="lb3"></div>
+    </div>
     <div class="login-content">
         <div class="login-brand">
             <div class="login-icon" aria-hidden="true">🫓</div>
@@ -79,7 +102,7 @@
         <div class="login-card">
             <h2>Welcome</h2>
             <p>Sign in to manage your business</p>
-            <button class="google-btn" id="googleBtn" onclick="googleSignIn()" aria-label="Sign in with Google">
+            <button class="google-btn" id="googleBtn" onclick="googleSignIn()" aria-label="Sign in with Google account">
                 <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
                     <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/>
                     <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
@@ -88,9 +111,6 @@
                 </svg>
                 <span>Sign in with Google</span>
             </button>
-            <!-- ★ v5: Offline retry button -->
-            <button class="offline-retry-btn" id="offlineRetryBtn" onclick="retrySignIn()" style="display:none">📡 Retry Connection</button>
-            <p class="login-offline-note" id="loginOfflineNote" style="display:none">📴 You appear to be offline. Connect to internet and try again.</p>
             <div class="login-features">
                 <div class="lf-item"><span aria-hidden="true">🔒</span> Secure</div>
                 <div class="lf-item"><span aria-hidden="true">☁️</span> Cloud Sync</div>
@@ -102,51 +122,65 @@
 </div>
 
 
-<!-- PIN SETUP SCREEN -->
+<!-- ======================================================
+     PIN SETUP SCREEN
+     ====================================================== -->
 <div id="pinSetupScreen" class="screen pin-screen" role="main" aria-label="Create PIN">
     <div class="pin-bg" aria-hidden="true"><div class="pb1"></div><div class="pb2"></div><div class="pb3"></div></div>
     <div class="pin-card">
         <div class="pin-ic" aria-hidden="true">🔐</div>
         <h2>Create Business PIN</h2>
         <p>Set a 4-digit security PIN</p>
-        <div class="pin-dots" id="setupDots" role="status"><i></i><i></i><i></i><i></i></div>
+        <div class="pin-dots" id="setupDots" role="status" aria-label="PIN digits entered">
+            <i></i><i></i><i></i><i></i>
+        </div>
         <div class="pin-err" id="setupErr" role="alert" aria-live="polite"></div>
         <div class="pin-pad" id="setupPad" role="group" aria-label="Number pad"></div>
     </div>
 </div>
 
 
-<!-- PIN CONFIRM SCREEN -->
+<!-- ======================================================
+     PIN CONFIRM SCREEN
+     ====================================================== -->
 <div id="pinConfirmScreen" class="screen pin-screen" role="main" aria-label="Confirm PIN">
     <div class="pin-bg" aria-hidden="true"><div class="pb1"></div><div class="pb2"></div><div class="pb3"></div></div>
     <div class="pin-card">
         <div class="pin-ic" aria-hidden="true">🛡️</div>
         <h2>Confirm PIN</h2>
         <p>Enter the same PIN again</p>
-        <div class="pin-dots" id="confirmDots" role="status"><i></i><i></i><i></i><i></i></div>
+        <div class="pin-dots" id="confirmDots" role="status" aria-label="PIN digits entered">
+            <i></i><i></i><i></i><i></i>
+        </div>
         <div class="pin-err" id="confirmErr" role="alert" aria-live="polite"></div>
         <div class="pin-pad" id="confirmPad" role="group" aria-label="Number pad"></div>
     </div>
 </div>
 
 
-<!-- PIN LOGIN SCREEN -->
-<div id="pinLoginScreen" class="screen pin-screen" role="main" aria-label="Enter PIN">
+<!-- ======================================================
+     PIN LOGIN SCREEN
+     ====================================================== -->
+<div id="pinLoginScreen" class="screen pin-screen" role="main" aria-label="Enter PIN to unlock">
     <div class="pin-bg" aria-hidden="true"><div class="pb1"></div><div class="pb2"></div><div class="pb3"></div></div>
     <div class="pin-card">
         <div class="pin-ic" aria-hidden="true">🫓</div>
         <h2>Meri Dukaan</h2>
         <p>Enter your PIN to continue</p>
         <div class="pin-user" id="pinUserInfo" aria-label="Logged in user"></div>
-        <div class="pin-dots" id="loginDots" role="status"><i></i><i></i><i></i><i></i></div>
+        <div class="pin-dots" id="loginDots" role="status" aria-label="PIN digits entered">
+            <i></i><i></i><i></i><i></i>
+        </div>
         <div class="pin-err" id="loginErr" role="alert" aria-live="polite"></div>
         <div class="pin-pad" id="loginPad" role="group" aria-label="Number pad"></div>
-        <button class="pin-switch" onclick="signOutAndLogin()" aria-label="Switch account">Switch Account</button>
+        <button class="pin-switch" onclick="signOutAndLogin()" aria-label="Switch to different account">Switch Account</button>
     </div>
 </div>
 
 
-<!-- DASHBOARD SCREEN -->
+<!-- ======================================================
+     DASHBOARD SCREEN
+     ====================================================== -->
 <div id="dashboardScreen" class="screen" role="main">
     <div class="dash-hdr">
         <div class="dh-bg" aria-hidden="true"></div>
@@ -162,48 +196,110 @@
                     <button class="dh-icon-btn" onclick="lockApp()" aria-label="Lock app">🔒</button>
                 </div>
             </div>
+
+            <!-- Period Toggle -->
             <div class="period-tabs" role="tablist" aria-label="Time period filter">
                 <button class="pt active" role="tab" aria-selected="true" onclick="setPeriod('today',this)">Today</button>
                 <button class="pt" role="tab" aria-selected="false" onclick="setPeriod('week',this)">Week</button>
                 <button class="pt" role="tab" aria-selected="false" onclick="setPeriod('month',this)">Month</button>
                 <button class="pt" role="tab" aria-selected="false" onclick="setPeriod('year',this)">Year</button>
             </div>
+
+            <!-- Stats Grid -->
             <div class="stat-grid">
-                <div class="stat-c" aria-label="Roti sold"><div class="sc-ic sc1" aria-hidden="true">🫓</div><div class="sc-info"><small>Roti Sold</small><strong id="dRoti">0</strong></div></div>
-                <div class="stat-c" aria-label="Income"><div class="sc-ic sc2" aria-hidden="true">💰</div><div class="sc-info"><small>Income</small><strong id="dIncome">₹0</strong></div></div>
-                <div class="stat-c" aria-label="Expense"><div class="sc-ic sc3" aria-hidden="true">🛒</div><div class="sc-info"><small>Expense</small><strong id="dExpense">₹0</strong></div></div>
-                <div class="stat-c" id="profitCard" aria-label="Profit"><div class="sc-ic sc4" aria-hidden="true">📊</div><div class="sc-info"><small>Profit</small><strong id="dProfit">₹0</strong></div></div>
+                <div class="stat-c" aria-label="Roti sold count">
+                    <div class="sc-ic sc1" aria-hidden="true">🫓</div>
+                    <div class="sc-info"><small>Roti Sold</small><strong id="dRoti">0</strong></div>
+                </div>
+                <div class="stat-c" aria-label="Total income">
+                    <div class="sc-ic sc2" aria-hidden="true">💰</div>
+                    <div class="sc-info"><small>Income</small><strong id="dIncome">₹0</strong></div>
+                </div>
+                <div class="stat-c" aria-label="Total expense">
+                    <div class="sc-ic sc3" aria-hidden="true">🛒</div>
+                    <div class="sc-info"><small>Expense</small><strong id="dExpense">₹0</strong></div>
+                </div>
+                <div class="stat-c" id="profitCard" aria-label="Net profit">
+                    <div class="sc-ic sc4" aria-hidden="true">📊</div>
+                    <div class="sc-info"><small>Profit</small><strong id="dProfit">₹0</strong></div>
+                </div>
             </div>
+
+            <!-- Credit & Waste Strip -->
             <div class="dash-strip-row">
-                <div class="udh-strip" onclick="goTo('creditScreen')" role="button" tabindex="0" aria-label="View credit"><span>💳 Credit Pending</span><strong id="dCredit">₹0</strong></div>
-                <div class="waste-strip" onclick="goTo('wasteScreen')" role="button" tabindex="0" aria-label="View waste"><span>🫓 Waste</span><strong id="dWaste">0</strong></div>
+                <div class="udh-strip" onclick="goTo('creditScreen')" role="button" tabindex="0" aria-label="View credit details">
+                    <span>💳 Credit Pending</span>
+                    <strong id="dCredit">₹0</strong>
+                </div>
+                <div class="waste-strip" onclick="goTo('wasteScreen')" role="button" tabindex="0" aria-label="View waste details">
+                    <span>🫓 Waste</span>
+                    <strong id="dWaste">0</strong>
+                </div>
             </div>
         </div>
     </div>
+
     <div class="dash-body">
+        <!-- Quick Actions -->
         <h3 class="sec-t">Quick Actions</h3>
         <div class="act-grid">
-            <button class="act-btn" onclick="goTo('quickSaleScreen')" aria-label="Quick sale"><div class="ab-i ab-quick" aria-hidden="true">⚡</div><span>Quick Sale</span></button>
-            <button class="act-btn" onclick="goTo('salesScreen')" aria-label="Sales"><div class="ab-i ab1" aria-hidden="true">🫓</div><span>Sales</span></button>
-            <button class="act-btn" onclick="goTo('expenseScreen')" aria-label="Expenses"><div class="ab-i ab2" aria-hidden="true">🛒</div><span>Expense</span></button>
-            <button class="act-btn" onclick="goTo('customerScreen')" aria-label="Customers"><div class="ab-i ab3" aria-hidden="true">👥</div><span>Customers</span></button>
-            <button class="act-btn" onclick="goTo('creditScreen')" aria-label="Credit"><div class="ab-i ab4" aria-hidden="true">💳</div><span>Credit</span></button>
-            <button class="act-btn" onclick="goTo('wasteScreen')" aria-label="Waste"><div class="ab-i ab-waste" aria-hidden="true">🗑️</div><span>Waste</span></button>
-            <button class="act-btn" onclick="goTo('stockScreen')" aria-label="Stock tracker"><div class="ab-i ab-stock" aria-hidden="true">📦</div><span>Stock</span></button>
-            <button class="act-btn" onclick="goTo('reportScreen')" aria-label="Reports"><div class="ab-i ab5" aria-hidden="true">📊</div><span>Reports</span></button>
+            <button class="act-btn" onclick="goTo('quickSaleScreen')" aria-label="Quick daily sale entry">
+                <div class="ab-i ab-quick" aria-hidden="true">⚡</div><span>Quick Sale</span>
+            </button>
+            <button class="act-btn" onclick="goTo('salesScreen')" aria-label="View and add sales">
+                <div class="ab-i ab1" aria-hidden="true">🫓</div><span>Sales</span>
+            </button>
+            <button class="act-btn" onclick="goTo('expenseScreen')" aria-label="View and add expenses">
+                <div class="ab-i ab2" aria-hidden="true">🛒</div><span>Expense</span>
+            </button>
+            <button class="act-btn" onclick="goTo('customerScreen')" aria-label="Manage customers">
+                <div class="ab-i ab3" aria-hidden="true">👥</div><span>Customers</span>
+            </button>
+            <button class="act-btn" onclick="goTo('creditScreen')" aria-label="View credit register">
+                <div class="ab-i ab4" aria-hidden="true">💳</div><span>Credit</span>
+            </button>
+            <button class="act-btn" onclick="goTo('wasteScreen')" aria-label="Track waste">
+                <div class="ab-i ab-waste" aria-hidden="true">🗑️</div><span>Waste</span>
+            </button>
+            <button class="act-btn" onclick="goTo('reportScreen')" aria-label="View reports and analytics">
+                <div class="ab-i ab5" aria-hidden="true">📊</div><span>Reports</span>
+            </button>
+            <button class="act-btn" onclick="goTo('settingScreen')" aria-label="App settings">
+                <div class="ab-i ab6" aria-hidden="true">⚙️</div><span>Settings</span>
+            </button>
         </div>
+
+        <!-- Today's Activity -->
         <h3 class="sec-t">Today's Activity</h3>
         <div class="act-wrap">
-            <div class="aw-card"><div class="aw-hdr"><span class="aw-dot green" aria-hidden="true"></span><span class="aw-lbl">Recent Sales</span></div><div id="recentSales" aria-live="polite"><div class="no-data">No sales today</div></div></div>
-            <div class="aw-card"><div class="aw-hdr"><span class="aw-dot red" aria-hidden="true"></span><span class="aw-lbl">Recent Expenses</span></div><div id="recentExp" aria-live="polite"><div class="no-data">No expenses today</div></div></div>
+            <div class="aw-card">
+                <div class="aw-hdr">
+                    <span class="aw-dot green" aria-hidden="true"></span>
+                    <span class="aw-lbl">Recent Sales</span>
+                </div>
+                <div id="recentSales" aria-live="polite"><div class="no-data">No sales today</div></div>
+            </div>
+            <div class="aw-card">
+                <div class="aw-hdr">
+                    <span class="aw-dot red" aria-hidden="true"></span>
+                    <span class="aw-lbl">Recent Expenses</span>
+                </div>
+                <div id="recentExp" aria-live="polite"><div class="no-data">No expenses today</div></div>
+            </div>
         </div>
     </div>
 </div>
 
 
-<!-- QUICK SALE SCREEN -->
+<!-- ======================================================
+     QUICK SALE SCREEN
+     ====================================================== -->
 <div id="quickSaleScreen" class="screen" role="main">
-    <div class="pg-top"><button class="pg-back" onclick="goTo('dashboardScreen')" aria-label="Back">‹</button><h2>⚡ Quick Daily Orders</h2><div></div></div>
+    <div class="pg-top">
+        <button class="pg-back" onclick="goTo('dashboardScreen')" aria-label="Go back to dashboard">‹</button>
+        <h2>⚡ Quick Daily Orders</h2>
+        <div></div>
+    </div>
     <div class="quick-date"><span id="quickDateLabel"></span></div>
     <div class="quick-summary">
         <div class="qs-item"><strong id="qsDone">0</strong><small>Done</small></div>
@@ -212,21 +308,34 @@
         <div class="sm-sep" aria-hidden="true"></div>
         <div class="qs-item"><strong class="green" id="qsTotal">₹0</strong><small>Total</small></div>
     </div>
-    <div class="quick-actions-bar"><button class="qa-btn" onclick="markAllFixedDone()" aria-label="Mark all fixed as done">✅ Mark All Fixed as Done</button></div>
+    <div class="quick-actions-bar">
+        <button class="qa-btn" onclick="markAllFixedDone()" aria-label="Mark all fixed daily orders as done">✅ Mark All Fixed as Done</button>
+    </div>
     <div class="pg-body" id="quickSaleList" aria-live="polite"></div>
 </div>
 
 
-<!-- SALES SCREEN -->
+<!-- ======================================================
+     SALES SCREEN
+     ====================================================== -->
 <div id="salesScreen" class="screen" role="main">
-    <div class="pg-top"><button class="pg-back" onclick="goTo('dashboardScreen')" aria-label="Back">‹</button><h2>Sales</h2><button class="pg-act" onclick="openSaleForm()" aria-label="Add sale">+ Add</button></div>
+    <div class="pg-top">
+        <button class="pg-back" onclick="goTo('dashboardScreen')" aria-label="Go back">‹</button>
+        <h2>Sales</h2>
+        <button class="pg-act" onclick="openSaleForm()" aria-label="Add new sale">+ Add</button>
+    </div>
     <div class="dt-nav">
         <button class="dt-arr" onclick="changeSalesDate(-1)" aria-label="Previous day">‹</button>
         <button class="dt-pick" id="salesDateBtn" onclick="openDatePicker('sales')" aria-label="Select date"></button>
         <button class="dt-arr" onclick="changeSalesDate(1)" aria-label="Next day">›</button>
     </div>
     <input type="hidden" id="salesDate">
-    <div class="search-wrap"><input type="text" id="salesSearch" class="search-input" placeholder="🔍 Search customer..." oninput="filterSales(this.value)" autocomplete="off"></div>
+
+    <!-- Search -->
+    <div class="search-wrap">
+        <input type="text" id="salesSearch" class="search-input" placeholder="🔍 Search customer..." oninput="filterSales(this.value)" autocomplete="off">
+    </div>
+
     <div class="sum-bar">
         <div class="sm-i"><strong id="sRoti">0</strong><small>Roti</small></div>
         <div class="sm-sep" aria-hidden="true"></div>
@@ -240,9 +349,15 @@
 </div>
 
 
-<!-- EXPENSE SCREEN -->
+<!-- ======================================================
+     EXPENSE SCREEN
+     ====================================================== -->
 <div id="expenseScreen" class="screen" role="main">
-    <div class="pg-top"><button class="pg-back" onclick="goTo('dashboardScreen')" aria-label="Back">‹</button><h2>Expenses</h2><button class="pg-act" onclick="openExpenseForm()" aria-label="Add expense">+ Add</button></div>
+    <div class="pg-top">
+        <button class="pg-back" onclick="goTo('dashboardScreen')" aria-label="Go back">‹</button>
+        <h2>Expenses</h2>
+        <button class="pg-act" onclick="openExpenseForm()" aria-label="Add new expense">+ Add</button>
+    </div>
     <div class="dt-nav">
         <button class="dt-arr" onclick="changeExpDate(-1)" aria-label="Previous day">‹</button>
         <button class="dt-pick" id="expDateBtn" onclick="openDatePicker('expense')" aria-label="Select date"></button>
@@ -258,9 +373,15 @@
 </div>
 
 
-<!-- WASTE SCREEN -->
+<!-- ======================================================
+     WASTE SCREEN
+     ====================================================== -->
 <div id="wasteScreen" class="screen" role="main">
-    <div class="pg-top"><button class="pg-back" onclick="goTo('dashboardScreen')" aria-label="Back">‹</button><h2>Waste Tracking</h2><button class="pg-act" onclick="openWasteForm()" aria-label="Add waste">+ Add</button></div>
+    <div class="pg-top">
+        <button class="pg-back" onclick="goTo('dashboardScreen')" aria-label="Go back">‹</button>
+        <h2>Waste Tracking</h2>
+        <button class="pg-act" onclick="openWasteForm()" aria-label="Add waste entry">+ Add</button>
+    </div>
     <div class="dt-nav">
         <button class="dt-arr" onclick="changeWasteDate(-1)" aria-label="Previous day">‹</button>
         <button class="dt-pick" id="wasteDateBtn" onclick="openDatePicker('waste')" aria-label="Select date"></button>
@@ -276,35 +397,46 @@
 </div>
 
 
-<!-- CUSTOMERS SCREEN -->
+<!-- ======================================================
+     CUSTOMERS SCREEN
+     ====================================================== -->
 <div id="customerScreen" class="screen" role="main">
-    <div class="pg-top"><button class="pg-back" onclick="goTo('dashboardScreen')" aria-label="Back">‹</button><h2>Customers</h2><button class="pg-act" onclick="openCustomerForm()" aria-label="Add customer">+ Add</button></div>
+    <div class="pg-top">
+        <button class="pg-back" onclick="goTo('dashboardScreen')" aria-label="Go back">‹</button>
+        <h2>Customers</h2>
+        <button class="pg-act" onclick="openCustomerForm()" aria-label="Add new customer">+ Add</button>
+    </div>
     <div class="pg-sub" id="custCount">0 Customers</div>
     <div class="pg-body" id="customerList" aria-live="polite"></div>
 </div>
 
 
-<!-- CREDIT SCREEN -->
+<!-- ======================================================
+     CREDIT / UDHARI SCREEN
+     ====================================================== -->
 <div id="creditScreen" class="screen" role="main">
-    <div class="pg-top"><button class="pg-back" onclick="goTo('dashboardScreen')" aria-label="Back">‹</button><h2>Credit Register</h2><div></div></div>
-    <div class="udh-hero"><p>Total Credit Pending</p><h2 id="cTotalPending">₹0</h2></div>
+    <div class="pg-top">
+        <button class="pg-back" onclick="goTo('dashboardScreen')" aria-label="Go back">‹</button>
+        <h2>Credit Register</h2>
+        <div></div>
+    </div>
+    <div class="udh-hero">
+        <p>Total Credit Pending</p>
+        <h2 id="cTotalPending">₹0</h2>
+    </div>
     <div class="pg-body" id="creditList" aria-live="polite"></div>
 </div>
 
 
-<!-- ★ v5 NEW: STOCK TRACKER SCREEN -->
-<div id="stockScreen" class="screen" role="main">
-    <div class="pg-top"><button class="pg-back" onclick="goTo('dashboardScreen')" aria-label="Back">‹</button><h2>📦 Stock Tracker</h2><div></div></div>
-    <div class="pg-sub">Compare rates • Track how long stock lasts</div>
-    <div style="padding:12px 16px calc(var(--nav-h) + var(--safe-b) + 16px)" id="stockContent" aria-live="polite">
-        <div class="no-data" style="padding:40px 0">Loading stock data...</div>
-    </div>
-</div>
-
-
-<!-- REPORTS SCREEN -->
+<!-- ======================================================
+     REPORTS SCREEN
+     ====================================================== -->
 <div id="reportScreen" class="screen" role="main">
-    <div class="pg-top"><button class="pg-back" onclick="goTo('dashboardScreen')" aria-label="Back">‹</button><h2>Reports</h2><div></div></div>
+    <div class="pg-top">
+        <button class="pg-back" onclick="goTo('dashboardScreen')" aria-label="Go back">‹</button>
+        <h2>Reports</h2>
+        <div></div>
+    </div>
     <div class="rp-tabs" role="tablist" aria-label="Report type">
         <button class="rp-t active" role="tab" aria-selected="true" onclick="switchReport('daily',this)">Daily</button>
         <button class="rp-t" role="tab" aria-selected="false" onclick="switchReport('weekly',this)">Weekly</button>
@@ -315,63 +447,174 @@
         <button class="dt-pick" id="reportDateBtn" onclick="openDatePicker('report')" aria-label="Select date"></button>
         <button class="dt-arr" onclick="changeReportDate(1)" aria-label="Next period">›</button>
     </div>
+    <!-- ★ FIX: Missing hidden input that caused crash -->
     <input type="hidden" id="reportDate">
-    <!-- ★ v5: Unified Pulse Chart -->
+
+    <!-- Charts -->
     <div class="chart-section" id="chartSection">
         <div class="chart-card" id="salesChartCard">
-            <h4 class="chart-title">📊 Income vs Expense vs Profit</h4>
+            <h4 class="chart-title">📊 Sales Overview</h4>
             <div class="chart-wrap"><canvas id="salesChart"></canvas></div>
-            <div class="pulse-legend" id="pulseLegend"></div>
         </div>
         <div class="chart-card" id="expenseChartCard">
             <h4 class="chart-title">🥧 Expense Breakdown</h4>
             <div class="chart-wrap chart-sm"><canvas id="expenseChart"></canvas></div>
         </div>
     </div>
+
     <div id="reportContent" class="pg-body rp-body" aria-live="polite"></div>
-    <div class="pdf-wrap"><button class="pdf-btn" onclick="generatePDF()" aria-label="Download PDF">📄 Download PDF Report</button></div>
+    <div class="pdf-wrap">
+        <button class="pdf-btn" onclick="generatePDF()" aria-label="Download PDF report">📄 Download PDF Report</button>
+    </div>
 </div>
-
-
-<!-- SETTINGS SCREEN -->
+<!-- ======================================================
+     SETTINGS SCREEN
+     ====================================================== -->
 <div id="settingScreen" class="screen" role="main">
-    <div class="pg-top"><button class="pg-back" onclick="goTo('dashboardScreen')" aria-label="Back">‹</button><h2>Settings</h2><div></div></div>
+    <div class="pg-top">
+        <button class="pg-back" onclick="goTo('dashboardScreen')" aria-label="Go back">‹</button>
+        <h2>Settings</h2>
+        <div></div>
+    </div>
     <div class="set-list">
+        <!-- User Info Card -->
         <div class="set-user" id="setUserInfo">
             <img class="su-avatar" id="suAvatar" src="" alt="User avatar" onerror="this.style.display='none'">
-            <div class="su-info"><h4 id="suName">User</h4><p id="suEmail">user@gmail.com</p></div>
+            <div class="su-info">
+                <h4 id="suName">User</h4>
+                <p id="suEmail">email@gmail.com</p>
+            </div>
             <span class="su-role" id="suRole">Owner</span>
         </div>
+
+        <!-- Appearance -->
         <div class="set-sec-title">🎨 Appearance</div>
-        <div class="set-i" onclick="cycleTheme()" role="button" tabindex="0" aria-label="Change theme"><div class="si-ic si-purple" id="setThemeIc">🌙</div><div class="si-tx"><h4>Theme</h4><p id="setThemeLabel">System Default</p></div><span class="theme-badge" id="setThemeBadge">Auto</span></div>
+        <div class="set-i" onclick="cycleTheme()" role="button" tabindex="0" aria-label="Change app theme">
+            <div class="si-ic si-purple" id="setThemeIc">🌙</div>
+            <div class="si-tx">
+                <h4>Theme</h4>
+                <p id="setThemeLabel">System Default</p>
+            </div>
+            <span class="theme-badge" id="setThemeBadge">Auto</span>
+        </div>
+
+        <!-- Team -->
         <div class="set-sec-title">👥 Team Members</div>
-        <div class="set-i" onclick="openTeamManager()" role="button" tabindex="0" aria-label="Manage team"><div class="si-ic si-blue">👥</div><div class="si-tx"><h4>Manage Team</h4><p>Add family members for multi-device</p></div><span class="si-go" aria-hidden="true">›</span></div>
+        <div class="set-i" onclick="openTeamManager()" role="button" tabindex="0" aria-label="Manage team members">
+            <div class="si-ic si-blue">👥</div>
+            <div class="si-tx">
+                <h4>Manage Team</h4>
+                <p>Add family members for multi-device</p>
+            </div>
+            <span class="si-go" aria-hidden="true">›</span>
+        </div>
+
+        <!-- Cloud Sync -->
         <div class="set-sec-title">☁️ Data & Sync</div>
-        <div class="set-i" aria-label="Sync status"><div class="si-ic si-green">☁️</div><div class="si-tx"><h4>Cloud Sync</h4><p id="syncStatus">Connected • Real-time active</p></div><span class="sync-dot online" id="syncDot"></span></div>
-        <div class="set-i" onclick="exportData()" role="button" tabindex="0" aria-label="Download backup"><div class="si-ic si-green">💾</div><div class="si-tx"><h4>Download Backup</h4><p>Save data as JSON file</p></div><span class="si-go" aria-hidden="true">›</span></div>
-        <div class="set-i" onclick="document.getElementById('importFile').click()" role="button" tabindex="0" aria-label="Import data"><div class="si-ic si-purple">📥</div><div class="si-tx"><h4>Import Old Data</h4><p>Import from v4 backup file</p></div><span class="si-go" aria-hidden="true">›</span></div>
+        <div class="set-i" aria-label="Cloud sync status">
+            <div class="si-ic si-green">☁️</div>
+            <div class="si-tx">
+                <h4>Cloud Sync</h4>
+                <p id="syncStatus">Connected • Real-time active</p>
+            </div>
+            <span class="sync-dot online" id="syncDot" aria-label="Connection status"></span>
+        </div>
+        <div class="set-i" onclick="exportData()" role="button" tabindex="0" aria-label="Download data backup">
+            <div class="si-ic si-green">💾</div>
+            <div class="si-tx">
+                <h4>Download Backup</h4>
+                <p>Save data as JSON file</p>
+            </div>
+            <span class="si-go" aria-hidden="true">›</span>
+        </div>
+        <div class="set-i" onclick="document.getElementById('importFile').click()" role="button" tabindex="0" aria-label="Import data from backup">
+            <div class="si-ic si-purple">📥</div>
+            <div class="si-tx">
+                <h4>Import Old Data</h4>
+                <p>Import from v3 backup file</p>
+            </div>
+            <span class="si-go" aria-hidden="true">›</span>
+        </div>
         <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(event)" aria-hidden="true">
+
+        <!-- Security -->
         <div class="set-sec-title">🔐 Security</div>
-        <div class="set-i" onclick="showChangePinUI()" role="button" tabindex="0" aria-label="Change PIN"><div class="si-ic si-blue">🔐</div><div class="si-tx"><h4>Change PIN</h4><p>Update security PIN</p></div><span class="si-go" aria-hidden="true">›</span></div>
+        <div class="set-i" onclick="showChangePinUI()" role="button" tabindex="0" aria-label="Change security PIN">
+            <div class="si-ic si-blue">🔐</div>
+            <div class="si-tx">
+                <h4>Change PIN</h4>
+                <p>Update security PIN</p>
+            </div>
+            <span class="si-go" aria-hidden="true">›</span>
+        </div>
+
+        <!-- App Info -->
         <div class="set-sec-title">ℹ️ About</div>
-        <div class="set-i" id="swVersionCard" aria-label="Version info"><div class="si-ic si-green">📱</div><div class="si-tx"><h4>App Version</h4><p id="appVersionText">v5.0 • PWA</p></div><span id="updateBadge" style="display:none" aria-hidden="true">🔄</span></div>
+        <div class="set-i" id="swVersionCard" aria-label="App version info">
+            <div class="si-ic si-green">📱</div>
+            <div class="si-tx">
+                <h4>App Version</h4>
+                <p id="appVersionText">v4.0 • PWA</p>
+            </div>
+            <span class="si-go" aria-hidden="true" id="updateBadge" style="display:none">🔄</span>
+        </div>
+
+        <!-- Danger Zone -->
         <div class="set-sec-title">⚠️ Danger Zone</div>
-        <div class="set-i danger" onclick="resetAllData()" role="button" tabindex="0" aria-label="Delete all data"><div class="si-ic si-red">🗑️</div><div class="si-tx"><h4>Delete All Data</h4><p>Permanently remove all data</p></div><span class="si-go" aria-hidden="true">›</span></div>
-        <div class="set-i danger" onclick="signOutApp()" role="button" tabindex="0" aria-label="Sign out"><div class="si-ic si-red">🚪</div><div class="si-tx"><h4>Sign Out</h4><p>Log out from this device</p></div><span class="si-go" aria-hidden="true">›</span></div>
-        <div class="app-foot"><p>🫓 Meri Dukaan v5.0</p><p>Cloud-powered Business Management</p><p class="app-foot-sub">Made with ❤️ for small businesses</p></div>
+        <div class="set-i danger" onclick="resetAllData()" role="button" tabindex="0" aria-label="Delete all data permanently">
+            <div class="si-ic si-red">🗑️</div>
+            <div class="si-tx">
+                <h4>Delete All Data</h4>
+                <p>Permanently remove all data</p>
+            </div>
+            <span class="si-go" aria-hidden="true">›</span>
+        </div>
+        <div class="set-i danger" onclick="signOutApp()" role="button" tabindex="0" aria-label="Sign out from app">
+            <div class="si-ic si-red">🚪</div>
+            <div class="si-tx">
+                <h4>Sign Out</h4>
+                <p>Log out from this device</p>
+            </div>
+            <span class="si-go" aria-hidden="true">›</span>
+        </div>
+
+        <div class="app-foot">
+            <p>🫓 Meri Dukaan v4.0</p>
+            <p>Cloud-powered Business Management</p>
+            <p class="app-foot-sub">Made with ❤️ for small businesses</p>
+        </div>
     </div>
 </div>
 
 
-<!-- OVERLAY: CUSTOMER FORM -->
+<!-- ======================================================
+     OVERLAY: CUSTOMER FORM
+     ====================================================== -->
 <div id="customerFormOverlay" class="overlay" role="dialog" aria-labelledby="cfTitle" aria-modal="true">
-    <div class="pg-top"><button class="pg-back" onclick="closeOverlay('customerFormOverlay')" aria-label="Close">‹</button><h2 id="cfTitle">New Customer</h2><div></div></div>
+    <div class="pg-top">
+        <button class="pg-back" onclick="closeOverlay('customerFormOverlay')" aria-label="Close form">‹</button>
+        <h2 id="cfTitle">New Customer</h2>
+        <div></div>
+    </div>
     <div class="frm-body">
         <form id="customerForm" onsubmit="saveCustomer(event)" novalidate>
             <input type="hidden" id="cfId">
-            <div class="fg"><label for="cfName">Customer Name *</label><input type="text" id="cfName" required placeholder="e.g. Sharma Ji" autocomplete="off" maxlength="100"></div>
-            <div class="fg"><label for="cfRate">Rate Per Roti (₹) *</label><input type="number" id="cfRate" required placeholder="e.g. 5" step="0.5" min="0.5" max="1000" inputmode="decimal"></div>
-            <div class="fg"><label for="cfPhone">Phone Number</label><input type="tel" id="cfPhone" placeholder="Optional" inputmode="tel" maxlength="15"></div>
+
+            <div class="fg">
+                <label for="cfName">Customer Name *</label>
+                <input type="text" id="cfName" required placeholder="e.g. Sharma Ji" autocomplete="off" maxlength="100">
+            </div>
+
+            <div class="fg">
+                <label for="cfRate">Rate Per Roti (₹) *</label>
+                <input type="number" id="cfRate" required placeholder="e.g. 5" step="0.5" min="0.5" max="1000" inputmode="decimal">
+            </div>
+
+            <div class="fg">
+                <label for="cfPhone">Phone Number</label>
+                <input type="tel" id="cfPhone" placeholder="Optional" inputmode="tel" maxlength="15" pattern="[0-9+\-\s]*">
+            </div>
+
             <div class="fg">
                 <label>Order Type *</label>
                 <div class="tgl-row">
@@ -380,20 +623,39 @@
                 </div>
                 <input type="hidden" id="cfOrderType" value="fixed">
             </div>
-            <div class="fg" id="fixedQtyGroup"><label for="cfQty">Daily Roti Count *</label><input type="number" id="cfQty" placeholder="e.g. 80" min="1" max="10000" inputmode="numeric"></div>
+
+            <div class="fg" id="fixedQtyGroup">
+                <label for="cfQty">Daily Roti Count *</label>
+                <input type="number" id="cfQty" placeholder="e.g. 80" min="1" max="10000" inputmode="numeric">
+            </div>
+
             <button type="submit" class="pri-btn" id="cfSubmitBtn">💾 Save Customer</button>
         </form>
     </div>
 </div>
 
 
-<!-- OVERLAY: SALE FORM -->
+<!-- ======================================================
+     OVERLAY: SALE FORM
+     ====================================================== -->
 <div id="saleFormOverlay" class="overlay" role="dialog" aria-labelledby="sfTitle" aria-modal="true">
-    <div class="pg-top"><button class="pg-back" onclick="closeOverlay('saleFormOverlay')" aria-label="Close">‹</button><h2 id="sfTitle">New Sale</h2><div></div></div>
+    <div class="pg-top">
+        <button class="pg-back" onclick="closeOverlay('saleFormOverlay')" aria-label="Close form">‹</button>
+        <h2 id="sfTitle">New Sale</h2>
+        <div></div>
+    </div>
     <div class="frm-body">
-        <div class="dup-warn" id="sfDupWarn" style="display:none" role="alert">⚠️ <span id="sfDupText">This customer already has a sale today</span></div>
+        <!-- Duplicate Sale Warning Banner -->
+        <div class="dup-warn" id="sfDupWarn" style="display:none" role="alert">
+            ⚠️ <span id="sfDupText">This customer already has a sale today</span>
+        </div>
+
         <form id="saleForm" onsubmit="saveSale(event)" novalidate>
-            <input type="hidden" id="sfId"><input type="hidden" id="sfCustomerId"><input type="hidden" id="sfCustomerName">
+            <input type="hidden" id="sfId">
+            <input type="hidden" id="sfCustomerId">
+            <input type="hidden" id="sfCustomerName">
+
+            <!-- Customer Type Toggle -->
             <div class="fg">
                 <label>Customer Type</label>
                 <div class="tgl-row">
@@ -402,13 +664,41 @@
                 </div>
                 <input type="hidden" id="sfType" value="regular">
             </div>
-            <div class="fg" id="sfCustGroup"><label>Customer *</label><button type="button" class="picker-btn" id="sfCustBtn" onclick="openCustPicker('sale')"><span id="sfCustLabel">-- Select Customer --</span><span class="pk-arrow" aria-hidden="true">›</span></button></div>
-            <div class="fg" id="sfWalkinGroup" style="display:none"><label for="sfWalkinName">Name (Optional)</label><input type="text" id="sfWalkinName" placeholder="e.g. Counter Customer" autocomplete="off" maxlength="100"></div>
-            <div class="fg-row">
-                <div class="fg"><label for="sfRate">Rate (₹)</label><input type="number" id="sfRate" step="0.5" min="0.5" max="1000" inputmode="decimal" oninput="calcSaleTotal()"></div>
-                <div class="fg"><label for="sfQty">Quantity *</label><input type="number" id="sfQty" required min="1" max="50000" inputmode="numeric" oninput="calcSaleTotal()" placeholder="Roti count"></div>
+
+            <!-- Regular: Customer Picker -->
+            <div class="fg" id="sfCustGroup">
+                <label>Customer *</label>
+                <button type="button" class="picker-btn" id="sfCustBtn" onclick="openCustPicker('sale')" aria-label="Select customer">
+                    <span id="sfCustLabel">-- Select Customer --</span>
+                    <span class="pk-arrow" aria-hidden="true">›</span>
+                </button>
             </div>
-            <div class="total-box"><span>Total Amount</span><span class="tb-val" id="sfTotal">₹0</span></div>
+
+            <!-- Walk-in: Name Input -->
+            <div class="fg" id="sfWalkinGroup" style="display:none">
+                <label for="sfWalkinName">Name (Optional)</label>
+                <input type="text" id="sfWalkinName" placeholder="e.g. Counter Customer" autocomplete="off" maxlength="100">
+            </div>
+
+            <!-- Rate and Quantity -->
+            <div class="fg-row">
+                <div class="fg">
+                    <label for="sfRate">Rate (₹)</label>
+                    <input type="number" id="sfRate" step="0.5" min="0.5" max="1000" inputmode="decimal" oninput="calcSaleTotal()">
+                </div>
+                <div class="fg">
+                    <label for="sfQty">Quantity *</label>
+                    <input type="number" id="sfQty" required min="1" max="50000" inputmode="numeric" oninput="calcSaleTotal()" placeholder="Roti count">
+                </div>
+            </div>
+
+            <!-- Total Display -->
+            <div class="total-box">
+                <span>Total Amount</span>
+                <span class="tb-val" id="sfTotal">₹0</span>
+            </div>
+
+            <!-- Payment Method -->
             <div class="fg">
                 <label>Payment Method *</label>
                 <div class="tgl-row tgl3">
@@ -418,18 +708,27 @@
                 </div>
                 <input type="hidden" id="sfPay" value="cash">
             </div>
+
             <button type="submit" class="pri-btn" id="sfSubmitBtn">💾 Save Sale</button>
         </form>
     </div>
 </div>
 
 
-<!-- OVERLAY: EXPENSE FORM -->
+<!-- ======================================================
+     OVERLAY: EXPENSE FORM
+     ====================================================== -->
 <div id="expFormOverlay" class="overlay" role="dialog" aria-labelledby="efTitle" aria-modal="true">
-    <div class="pg-top"><button class="pg-back" onclick="closeOverlay('expFormOverlay')" aria-label="Close">‹</button><h2 id="efTitle">New Expense</h2><div></div></div>
+    <div class="pg-top">
+        <button class="pg-back" onclick="closeOverlay('expFormOverlay')" aria-label="Close form">‹</button>
+        <h2 id="efTitle">New Expense</h2>
+        <div></div>
+    </div>
     <div class="frm-body">
         <form id="expForm" onsubmit="saveExpense(event)" novalidate>
             <input type="hidden" id="efId">
+
+            <!-- Category Selection -->
             <div class="fg">
                 <label>Category *</label>
                 <div class="cat-row">
@@ -441,10 +740,29 @@
                 </div>
                 <input type="hidden" id="efCat" value="atta">
             </div>
-            <div class="fg" id="efDetailGrp" style="display:none"><label for="efDetail">Description</label><input type="text" id="efDetail" placeholder="What was the expense" maxlength="200" autocomplete="off"></div>
-            <div class="fg" id="efWeightGrp"><label for="efWeight">Weight (KG)</label><input type="number" id="efWeight" placeholder="e.g. 50" min="0.1" max="99999" step="0.1" inputmode="decimal" oninput="updateExpComparison()"></div>
-            <div class="fg"><label for="efAmount">Amount (₹) *</label><input type="number" id="efAmount" required placeholder="Amount in rupees" min="1" max="9999999" inputmode="numeric" oninput="updateExpComparison()"></div>
+
+            <!-- Other: Description -->
+            <div class="fg" id="efDetailGrp" style="display:none">
+                <label for="efDetail">Description</label>
+                <input type="text" id="efDetail" placeholder="What was the expense" maxlength="200" autocomplete="off">
+            </div>
+
+            <!-- Weight (for Atta/Oil) -->
+            <div class="fg" id="efWeightGrp">
+                <label for="efWeight">Weight (KG)</label>
+                <input type="number" id="efWeight" placeholder="e.g. 50" min="0.1" max="99999" step="0.1" inputmode="decimal" oninput="updateExpComparison()">
+            </div>
+
+            <!-- Amount -->
+            <div class="fg">
+                <label for="efAmount">Amount (₹) *</label>
+                <input type="number" id="efAmount" required placeholder="Amount in rupees" min="1" max="9999999" inputmode="numeric" oninput="updateExpComparison()">
+            </div>
+
+            <!-- Live Rate Comparison Box -->
             <div id="efRateInfo" class="rate-box" style="display:none" role="status" aria-live="polite"></div>
+
+            <!-- Payment Method -->
             <div class="fg">
                 <label>Payment Method</label>
                 <div class="tgl-row">
@@ -453,19 +771,31 @@
                 </div>
                 <input type="hidden" id="efPay" value="cash">
             </div>
+
             <button type="submit" class="pri-btn" id="efSubmitBtn">💾 Save Expense</button>
         </form>
     </div>
 </div>
 
 
-<!-- OVERLAY: WASTE FORM -->
+<!-- ======================================================
+     OVERLAY: WASTE FORM
+     ====================================================== -->
 <div id="wasteFormOverlay" class="overlay" role="dialog" aria-labelledby="wfFormTitle" aria-modal="true">
-    <div class="pg-top"><button class="pg-back" onclick="closeOverlay('wasteFormOverlay')" aria-label="Close">‹</button><h2 id="wfFormTitle">Add Waste Entry</h2><div></div></div>
+    <div class="pg-top">
+        <button class="pg-back" onclick="closeOverlay('wasteFormOverlay')" aria-label="Close form">‹</button>
+        <h2 id="wfFormTitle">Add Waste Entry</h2>
+        <div></div>
+    </div>
     <div class="frm-body">
         <form id="wasteForm" onsubmit="saveWaste(event)" novalidate>
             <input type="hidden" id="wfId">
-            <div class="fg"><label for="wfQty">Roti Quantity *</label><input type="number" id="wfQty" required placeholder="How many roti wasted" min="1" max="50000" inputmode="numeric"></div>
+
+            <div class="fg">
+                <label for="wfQty">Roti Quantity *</label>
+                <input type="number" id="wfQty" required placeholder="How many roti wasted" min="1" max="50000" inputmode="numeric">
+            </div>
+
             <div class="fg">
                 <label>Reason *</label>
                 <div class="cat-row">
@@ -476,22 +806,42 @@
                 </div>
                 <input type="hidden" id="wfReason" value="burnt">
             </div>
-            <div class="fg"><label for="wfNotes">Notes (Optional)</label><input type="text" id="wfNotes" placeholder="Any details" maxlength="200" autocomplete="off"></div>
+
+            <div class="fg">
+                <label for="wfNotes">Notes (Optional)</label>
+                <input type="text" id="wfNotes" placeholder="Any details" maxlength="200" autocomplete="off">
+            </div>
+
             <button type="submit" class="pri-btn" id="wfSubmitBtn">💾 Save Waste Entry</button>
         </form>
     </div>
 </div>
 
 
-<!-- OVERLAY: CREDIT PAYMENT -->
+<!-- ======================================================
+     OVERLAY: CREDIT PAYMENT
+     ====================================================== -->
 <div id="creditPayOverlay" class="overlay" role="dialog" aria-labelledby="crpTitle" aria-modal="true">
-    <div class="pg-top"><button class="pg-back" onclick="closeOverlay('creditPayOverlay')" aria-label="Close">‹</button><h2 id="crpTitle">Credit Details</h2><div></div></div>
+    <div class="pg-top">
+        <button class="pg-back" onclick="closeOverlay('creditPayOverlay')" aria-label="Close">‹</button>
+        <h2 id="crpTitle">Credit Details</h2>
+        <div></div>
+    </div>
     <div class="frm-body">
+        <!-- Credit Summary -->
         <div id="crpDetail" class="udh-detail" aria-label="Credit summary"></div>
+
+        <!-- Payment Form -->
         <h3 class="sec-t" style="padding-left:0">Record Payment</h3>
         <form id="crpForm" onsubmit="saveCreditPayment(event)" novalidate>
-            <input type="hidden" id="crpCustId"><input type="hidden" id="crpCustName">
-            <div class="fg"><label for="crpAmount">Amount (₹) *</label><input type="number" id="crpAmount" required min="1" max="9999999" inputmode="numeric" placeholder="Payment amount"></div>
+            <input type="hidden" id="crpCustId">
+            <input type="hidden" id="crpCustName">
+
+            <div class="fg">
+                <label for="crpAmount">Amount (₹) *</label>
+                <input type="number" id="crpAmount" required min="1" max="9999999" inputmode="numeric" placeholder="Payment amount">
+            </div>
+
             <div class="fg">
                 <label>Payment Mode</label>
                 <div class="tgl-row">
@@ -500,38 +850,69 @@
                 </div>
                 <input type="hidden" id="crpPay" value="cash">
             </div>
+
             <button type="submit" class="pri-btn" id="crpSubmitBtn">💰 Save Payment</button>
         </form>
+
+        <!-- Payment History -->
         <h3 class="sec-t" style="padding-left:0;margin-top:20px">Payment History</h3>
         <div id="crpHistory" aria-live="polite"></div>
     </div>
 </div>
 
 
-<!-- OVERLAY: CHANGE PIN -->
+<!-- ======================================================
+     OVERLAY: CHANGE PIN
+     ====================================================== -->
 <div id="changePinOverlay" class="overlay" role="dialog" aria-label="Change PIN" aria-modal="true">
-    <div class="pg-top"><button class="pg-back" onclick="closeOverlay('changePinOverlay')" aria-label="Close">‹</button><h2>Change PIN</h2><div></div></div>
+    <div class="pg-top">
+        <button class="pg-back" onclick="closeOverlay('changePinOverlay')" aria-label="Close">‹</button>
+        <h2>Change PIN</h2>
+        <div></div>
+    </div>
     <div class="frm-body">
         <form onsubmit="saveNewPin(event)" novalidate>
-            <div class="fg"><label for="chpOld">Current PIN</label><input type="password" id="chpOld" required maxlength="4" minlength="4" inputmode="numeric" placeholder="••••" autocomplete="off"></div>
-            <div class="fg"><label for="chpNew">New PIN</label><input type="password" id="chpNew" required maxlength="4" minlength="4" inputmode="numeric" placeholder="••••" autocomplete="new-password"></div>
-            <div class="fg"><label for="chpConfirm">Confirm New PIN</label><input type="password" id="chpConfirm" required maxlength="4" minlength="4" inputmode="numeric" placeholder="••••" autocomplete="new-password"></div>
+            <div class="fg">
+                <label for="chpOld">Current PIN</label>
+                <input type="password" id="chpOld" required maxlength="4" minlength="4" pattern="[0-9]{4}" inputmode="numeric" placeholder="••••" autocomplete="off">
+            </div>
+            <div class="fg">
+                <label for="chpNew">New PIN</label>
+                <input type="password" id="chpNew" required maxlength="4" minlength="4" pattern="[0-9]{4}" inputmode="numeric" placeholder="••••" autocomplete="new-password">
+            </div>
+            <div class="fg">
+                <label for="chpConfirm">Confirm New PIN</label>
+                <input type="password" id="chpConfirm" required maxlength="4" minlength="4" pattern="[0-9]{4}" inputmode="numeric" placeholder="••••" autocomplete="new-password">
+            </div>
             <button type="submit" class="pri-btn" id="chpSubmitBtn">🔐 Update PIN</button>
         </form>
     </div>
 </div>
 
 
-<!-- OVERLAY: TEAM MANAGER -->
+<!-- ======================================================
+     OVERLAY: TEAM MANAGER
+     ====================================================== -->
 <div id="teamOverlay" class="overlay" role="dialog" aria-label="Team management" aria-modal="true">
-    <div class="pg-top"><button class="pg-back" onclick="closeOverlay('teamOverlay')" aria-label="Close">‹</button><h2>Team Members</h2><button class="pg-act" onclick="showAddMember()" aria-label="Add member">+ Add</button></div>
+    <div class="pg-top">
+        <button class="pg-back" onclick="closeOverlay('teamOverlay')" aria-label="Close">‹</button>
+        <h2>Team Members</h2>
+        <button class="pg-act" onclick="showAddMember()" aria-label="Add new team member">+ Add</button>
+    </div>
     <div class="frm-body">
-        <div class="team-info">📱 Add family members so they can access the same data on their phones using their Google account.</div>
+        <div class="team-info">
+            <p>📱 Add family members so they can access the same data on their phones using their Google account.</p>
+        </div>
         <div id="teamMemberList" aria-live="polite"></div>
+
+        <!-- Add Member Form (hidden by default) -->
         <div id="addMemberForm" style="display:none">
             <h3 class="sec-t" style="padding-left:0">Add New Member</h3>
             <form onsubmit="addTeamMember(event)" novalidate>
-                <div class="fg"><label for="tmEmail">Email Address *</label><input type="email" id="tmEmail" required placeholder="member@gmail.com" autocomplete="email" maxlength="200"></div>
+                <div class="fg">
+                    <label for="tmEmail">Email Address *</label>
+                    <input type="email" id="tmEmail" required placeholder="member@gmail.com" autocomplete="email" maxlength="200">
+                </div>
                 <div class="fg">
                     <label>Role *</label>
                     <div class="tgl-row">
@@ -540,7 +921,10 @@
                     </div>
                     <input type="hidden" id="tmRole" value="admin">
                 </div>
-                <div class="role-info"><p><strong>👑 Admin:</strong> Full access — add, edit, delete</p><p><strong>👤 Staff:</strong> Can only add entries</p></div>
+                <div class="role-info">
+                    <p><strong>👑 Admin:</strong> Full access — add, edit, delete</p>
+                    <p><strong>👤 Staff:</strong> Can only add entries</p>
+                </div>
                 <button type="submit" class="pri-btn" id="tmSubmitBtn">👥 Add Member</button>
             </form>
         </div>
@@ -548,44 +932,63 @@
 </div>
 
 
-<!-- BOTTOM SHEET: CUSTOMER PICKER -->
+<!-- ======================================================
+     BOTTOM SHEET: CUSTOMER PICKER
+     ====================================================== -->
 <div id="custPickerSheet" class="bts" role="dialog" aria-label="Select customer" aria-modal="true">
     <div class="bts-overlay" onclick="closeCustPicker()" aria-hidden="true"></div>
     <div class="bts-panel">
         <div class="bts-handle" aria-hidden="true"></div>
-        <div class="bts-hdr"><h3>Select Customer</h3><button class="bts-close" onclick="closeCustPicker()" aria-label="Close">✕</button></div>
+        <div class="bts-hdr">
+            <h3>Select Customer</h3>
+            <button class="bts-close" onclick="closeCustPicker()" aria-label="Close picker">✕</button>
+        </div>
         <input type="text" class="bts-search" id="custSearch" placeholder="🔍 Search customer..." oninput="filterCustPicker(this.value)" autocomplete="off">
-        <div class="bts-list" id="custPickerList" role="listbox"></div>
+        <div class="bts-list" id="custPickerList" role="listbox" aria-label="Customer list"></div>
     </div>
 </div>
 
 
-<!-- BOTTOM SHEET: DATE PICKER -->
+<!-- ======================================================
+     BOTTOM SHEET: CUSTOM DATE PICKER
+     ====================================================== -->
 <div id="datePickerSheet" class="bts" role="dialog" aria-label="Select date" aria-modal="true">
     <div class="bts-overlay" onclick="closeDatePicker()" aria-hidden="true"></div>
     <div class="bts-panel">
         <div class="bts-handle" aria-hidden="true"></div>
-        <div class="bts-hdr"><h3>Select Date</h3><button class="bts-close" onclick="closeDatePicker()" aria-label="Close">✕</button></div>
-        <div class="dp-quick">
-            <button class="dp-qb" onclick="pickQuickDate('today')">Today</button>
-            <button class="dp-qb" onclick="pickQuickDate('yesterday')">Yesterday</button>
-            <button class="dp-qb" onclick="pickQuickDate('week')">This Week</button>
+        <div class="bts-hdr">
+            <h3>Select Date</h3>
+            <button class="bts-close" onclick="closeDatePicker()" aria-label="Close date picker">✕</button>
         </div>
+
+        <!-- Quick Date Shortcuts -->
+        <div class="dp-quick">
+            <button class="dp-qb" onclick="pickQuickDate('today')" aria-label="Select today">Today</button>
+            <button class="dp-qb" onclick="pickQuickDate('yesterday')" aria-label="Select yesterday">Yesterday</button>
+            <button class="dp-qb" onclick="pickQuickDate('week')" aria-label="Select this week start">This Week</button>
+        </div>
+
+        <!-- Calendar -->
         <div class="dp-cal">
             <div class="dp-nav">
                 <button class="dp-nav-btn" id="dpPrevBtn" onclick="dpMonth(-1)" aria-label="Previous month">‹</button>
                 <span class="dp-month" id="dpMonthLabel"></span>
                 <button class="dp-nav-btn" id="dpNextBtn" onclick="dpMonth(1)" aria-label="Next month">›</button>
             </div>
-            <div class="dp-weekdays" aria-hidden="true"><span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span><span>Su</span></div>
-            <div class="dp-days" id="dpDays" role="grid"></div>
+            <div class="dp-weekdays" aria-hidden="true">
+                <span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span><span>Su</span>
+            </div>
+            <div class="dp-days" id="dpDays" role="grid" aria-label="Calendar days"></div>
+            <!-- Selected date info when viewing different month -->
             <div class="dp-selected-info" id="dpSelectedInfo" style="display:none" aria-live="polite"></div>
         </div>
     </div>
 </div>
 
 
-<!-- CONFIRM DIALOG -->
+<!-- ======================================================
+     CONFIRM DIALOG
+     ====================================================== -->
 <div id="confirmDialog" class="modal-bg" role="alertdialog" aria-modal="true" aria-labelledby="confirmTitle" aria-describedby="confirmMsg">
     <div class="modal-box">
         <div class="m-icon" id="confirmIcon" aria-hidden="true"></div>
@@ -593,94 +996,148 @@
         <p id="confirmMsg"></p>
         <div class="m-btns">
             <button class="m-btn m-no" onclick="hideConfirm()" aria-label="Cancel">Cancel</button>
-            <button class="m-btn m-yes" id="confirmYesBtn" onclick="onConfirmYes()" aria-label="Confirm">Confirm</button>
+            <button class="m-btn m-yes" id="confirmYesBtn" onclick="onConfirmYes()" aria-label="Confirm action">Confirm</button>
         </div>
     </div>
 </div>
 
 
-<!-- TOAST -->
+<!-- ======================================================
+     TOAST NOTIFICATION
+     ====================================================== -->
 <div id="toast" class="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
-<!-- OFFLINE BANNER -->
+
+<!-- ======================================================
+     OFFLINE INDICATOR
+     ====================================================== -->
 <div id="offlineBanner" class="offline-banner" role="alert" aria-live="assertive" style="display:none">
     <span>📴 You're offline — Changes will sync when connected</span>
 </div>
 
 
-<!-- BOTTOM NAVIGATION -->
+<!-- ======================================================
+     BOTTOM NAVIGATION
+     ====================================================== -->
 <nav class="bnav" id="bottomNav" role="navigation" aria-label="Main navigation">
-    <button class="bn-i active" data-s="dashboardScreen" onclick="goTo('dashboardScreen')" aria-label="Home" aria-current="page">
-        <span class="bn-ic" aria-hidden="true">🏠</span><span>Home</span>
+    <button class="bn-i active" data-s="dashboardScreen" onclick="goTo('dashboardScreen')" aria-label="Home dashboard" aria-current="page">
+        <span class="bn-ic" aria-hidden="true">🏠</span>
+        <span>Home</span>
     </button>
-    <button class="bn-i" data-s="quickSaleScreen" onclick="goTo('quickSaleScreen')" aria-label="Quick sale">
-        <span class="bn-ic" aria-hidden="true">⚡</span><span>Quick</span>
+    <button class="bn-i" data-s="quickSaleScreen" onclick="goTo('quickSaleScreen')" aria-label="Quick sale entry">
+        <span class="bn-ic" aria-hidden="true">⚡</span>
+        <span>Quick</span>
     </button>
-    <button class="bn-i" data-s="salesScreen" onclick="goTo('salesScreen')" aria-label="Sales">
-        <span class="bn-ic" aria-hidden="true">🫓</span><span>Sales</span>
+    <button class="bn-i" data-s="salesScreen" onclick="goTo('salesScreen')" aria-label="Sales list">
+        <span class="bn-ic" aria-hidden="true">🫓</span>
+        <span>Sales</span>
     </button>
-    <button class="bn-i" data-s="creditScreen" onclick="goTo('creditScreen')" aria-label="Credit">
-        <span class="bn-ic" aria-hidden="true">💳</span><span>Credit</span>
+    <button class="bn-i" data-s="creditScreen" onclick="goTo('creditScreen')" aria-label="Credit register">
+        <span class="bn-ic" aria-hidden="true">💳</span>
+        <span>Credit</span>
     </button>
-    <button class="bn-i" data-s="reportScreen" onclick="goTo('reportScreen')" aria-label="Reports">
-        <span class="bn-ic" aria-hidden="true">📊</span><span>Reports</span>
+    <button class="bn-i" data-s="reportScreen" onclick="goTo('reportScreen')" aria-label="Reports and analytics">
+        <span class="bn-ic" aria-hidden="true">📊</span>
+        <span>Reports</span>
     </button>
 </nav>
 
 
-<!-- APP SCRIPT -->
+<!-- ======================================================
+     SCRIPTS
+     ====================================================== -->
 <script src="app.js"></script>
 
-<!-- SERVICE WORKER -->
+<!-- Service Worker Registration -->
 <script>
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', function() {
         navigator.serviceWorker.register('./sw.js')
         .then(function(registration) {
             console.log('[App] SW registered, scope:', registration.scope);
-            setInterval(function() { registration.update(); }, 30 * 60 * 1000);
+
+            // Check for updates every 30 minutes
+            setInterval(function() {
+                registration.update();
+            }, 30 * 60 * 1000);
+
+            // Listen for new service worker
             registration.addEventListener('updatefound', function() {
                 var newWorker = registration.installing;
                 if (newWorker) {
                     newWorker.addEventListener('statechange', function() {
                         if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                            var badge = document.getElementById('updateBadge');
-                            if (badge) { badge.style.display = 'inline'; badge.textContent = '🔄 Update'; }
-                            if (typeof showToast === 'function') showToast('🔄 New version available! Restart app to update.', 'success');
+                            // New version available
+                            showUpdateBanner();
                         }
                     });
                 }
             });
         })
-        .catch(function(err) { console.warn('[App] SW registration failed:', err); });
+        .catch(function(err) {
+            console.warn('[App] SW registration failed:', err);
+        });
     });
+
+    // Handle controller change (new SW activated)
+    navigator.serviceWorker.addEventListener('controllerchange', function() {
+        console.log('[App] New service worker activated');
+    });
+}
+
+function showUpdateBanner() {
+    var badge = document.getElementById('updateBadge');
+    if (badge) {
+        badge.style.display = 'inline';
+        badge.textContent = '🔄 Update';
+    }
+    // Show toast
+    if (typeof showToast === 'function') {
+        showToast('🔄 New version available! Restart app to update.', 'success');
+    }
 }
 </script>
 
-<!-- KEYBOARD SHORTCUTS -->
+<!-- Keyboard Shortcuts -->
 <script>
 document.addEventListener('keydown', function(e) {
+    // ESC to close overlays and bottom sheets
     if (e.key === 'Escape') {
+        // Close confirm dialog first
         var confirm = document.getElementById('confirmDialog');
-        if (confirm && confirm.classList.contains('active')) { if (typeof hideConfirm === 'function') hideConfirm(); return; }
+        if (confirm && confirm.classList.contains('active')) {
+            if (typeof hideConfirm === 'function') hideConfirm();
+            return;
+        }
+
+        // Close bottom sheets
         var sheets = document.querySelectorAll('.bts.active');
-        if (sheets.length) { sheets.forEach(function(s) { s.classList.remove('active'); }); return; }
+        if (sheets.length) {
+            sheets.forEach(function(s) { s.classList.remove('active'); });
+            return;
+        }
+
+        // Close overlays
         var overlay = document.querySelector('.overlay.active');
-        if (overlay) { if (typeof closeOverlay === 'function') closeOverlay(overlay.id); return; }
+        if (overlay) {
+            if (typeof closeOverlay === 'function') closeOverlay(overlay.id);
+            return;
+        }
     }
 });
 </script>
 
-<!-- ONLINE/OFFLINE DETECTION -->
+<!-- Offline/Online Detection -->
 <script>
 function updateOfflineBanner() {
     var banner = document.getElementById('offlineBanner');
-    if (banner) banner.style.display = navigator.onLine ? 'none' : 'flex';
+    if (banner) {
+        banner.style.display = navigator.onLine ? 'none' : 'flex';
+    }
 }
 window.addEventListener('online', function() {
     updateOfflineBanner();
     if (typeof showToast === 'function') showToast('✅ Back online! Syncing...', 'success');
-    if (typeof updateLoginOfflineStatus === 'function') updateLoginOfflineStatus();
 });
 window.addEventListener('offline', function() {
     updateOfflineBanner();
