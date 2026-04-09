@@ -1,12 +1,12 @@
 /* ================================================
-   MERI DUKAAN v4.0 — SERVICE WORKER
+   MERI DUKAAN v5.0 — SERVICE WORKER
    Offline-first PWA with smart caching
    ================================================ */
 
-var CACHE_VERSION = 'meri-dukaan-v4.0.1';
+var CACHE_VERSION = 'meri-dukaan-v5.0.0';
 var STATIC_CACHE = 'md-static-' + CACHE_VERSION;
 var DYNAMIC_CACHE = 'md-dynamic-' + CACHE_VERSION;
-var FONT_CACHE = 'md-fonts-v1';
+var FONT_CACHE = 'md-fonts-v2';
 
 // ============ FILES TO PRE-CACHE ============
 var STATIC_ASSETS = [
@@ -25,7 +25,10 @@ var FONT_URLS = [
 var CDN_ASSETS = [
     'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js',
     'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
-    'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js'
+    'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js',
+    'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js',
+    'https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js',
+    'https://unpkg.com/lucide@latest/dist/umd/lucide.min.js'
 ];
 
 // URLs to NEVER cache (Firebase, auth, analytics)
@@ -58,7 +61,7 @@ self.addEventListener('install', function(event) {
             caches.open(FONT_CACHE).then(function(cache) {
                 return Promise.all(
                     FONT_URLS.map(function(url) {
-                        return cache.add(url).catch(function(err) {
+                        return cache.add(url).catch(function() {
                             console.warn('[SW] Font cache skip:', url);
                         });
                     })
@@ -69,7 +72,7 @@ self.addEventListener('install', function(event) {
             caches.open(DYNAMIC_CACHE).then(function(cache) {
                 return Promise.all(
                     CDN_ASSETS.map(function(url) {
-                        return cache.add(url).catch(function(err) {
+                        return cache.add(url).catch(function() {
                             console.warn('[SW] CDN cache skip:', url);
                         });
                     })
@@ -77,7 +80,7 @@ self.addEventListener('install', function(event) {
             })
         ]).then(function() {
             console.log('[SW] Install complete');
-            return self.skipWaiting(); // Activate immediately
+            return self.skipWaiting();
         })
     );
 });
@@ -91,7 +94,6 @@ self.addEventListener('activate', function(event) {
         caches.keys().then(function(cacheNames) {
             return Promise.all(
                 cacheNames.map(function(cacheName) {
-                    // Delete old static/dynamic caches (keep font cache)
                     if (cacheName !== STATIC_CACHE &&
                         cacheName !== DYNAMIC_CACHE &&
                         cacheName !== FONT_CACHE) {
@@ -102,7 +104,7 @@ self.addEventListener('activate', function(event) {
             );
         }).then(function() {
             console.log('[SW] Now controlling all clients');
-            return self.clients.claim(); // Take control immediately
+            return self.clients.claim();
         })
     );
 });
@@ -119,13 +121,13 @@ self.addEventListener('fetch', function(event) {
     // Skip chrome-extension and browser-internal URLs
     if (url.startsWith('chrome-extension') || url.startsWith('chrome://')) return;
 
-    // NEVER cache Firebase/Auth/Analytics — let them go to network
+    // NEVER cache Firebase/Auth/Analytics
     var shouldSkip = NEVER_CACHE.some(function(domain) {
         return url.indexOf(domain) !== -1;
     });
     if (shouldSkip) return;
 
-    // STRATEGY 1: Google Fonts — Cache-first (fonts rarely change)
+    // STRATEGY 1: Google Fonts — Cache-first
     if (url.indexOf('fonts.googleapis.com') !== -1 ||
         url.indexOf('fonts.gstatic.com') !== -1) {
         event.respondWith(cacheFirst(request, FONT_CACHE));
@@ -134,13 +136,13 @@ self.addEventListener('fetch', function(event) {
 
     // STRATEGY 2: CDN JS files — Cache-first with network update
     if (url.indexOf('cdn.jsdelivr.net') !== -1 ||
-        url.indexOf('cdnjs.cloudflare.com') !== -1) {
+        url.indexOf('cdnjs.cloudflare.com') !== -1 ||
+        url.indexOf('unpkg.com') !== -1) {
         event.respondWith(cacheFirst(request, DYNAMIC_CACHE));
         return;
     }
 
-    // STRATEGY 3: Static assets (HTML, CSS, JS) — Network-first
-    // This ensures users always get latest code when online
+    // STRATEGY 3: Static assets — Network-first
     if (url.indexOf(self.location.origin) !== -1) {
         event.respondWith(networkFirst(request, STATIC_CACHE));
         return;
@@ -152,26 +154,20 @@ self.addEventListener('fetch', function(event) {
 
 
 // ============ CACHING STRATEGIES ============
-
-// Cache-First: Check cache → if miss → fetch from network → store
 function cacheFirst(request, cacheName) {
     return caches.match(request).then(function(cachedResponse) {
         if (cachedResponse) {
-            // Return cached version, but also update cache in background
             fetchAndCache(request, cacheName);
             return cachedResponse;
         }
-        // Not in cache — fetch and store
         return fetchAndCache(request, cacheName);
     }).catch(function() {
         return fallbackResponse(request);
     });
 }
 
-// Network-First: Fetch from network → if fail → check cache → fallback
 function networkFirst(request, cacheName) {
     return fetch(request).then(function(networkResponse) {
-        // Network success — cache the fresh response
         if (networkResponse && networkResponse.status === 200) {
             var responseClone = networkResponse.clone();
             caches.open(cacheName).then(function(cache) {
@@ -180,7 +176,6 @@ function networkFirst(request, cacheName) {
         }
         return networkResponse;
     }).catch(function() {
-        // Network failed — try cache
         return caches.match(request).then(function(cachedResponse) {
             if (cachedResponse) return cachedResponse;
             return fallbackResponse(request);
@@ -188,7 +183,6 @@ function networkFirst(request, cacheName) {
     });
 }
 
-// Helper: Fetch and store in cache
 function fetchAndCache(request, cacheName) {
     return fetch(request).then(function(networkResponse) {
         if (networkResponse && networkResponse.status === 200) {
@@ -205,15 +199,14 @@ function fetchAndCache(request, cacheName) {
     });
 }
 
-// Fallback for when everything fails
 function fallbackResponse(request) {
-    // If it's a page navigation, serve the cached index.html
-    if (request.destination === 'document' ||
-        request.headers.get('accept').indexOf('text/html') !== -1) {
+    var accept = '';
+    try { accept = request.headers.get('accept') || ''; } catch(e) {}
+
+    if (request.destination === 'document' || accept.indexOf('text/html') !== -1) {
         return caches.match('./index.html');
     }
 
-    // For images, return a placeholder
     if (request.destination === 'image') {
         return new Response(
             '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100">' +
@@ -223,7 +216,6 @@ function fallbackResponse(request) {
         );
     }
 
-    // For everything else, return a generic offline response
     return new Response('Offline — Please check your connection.', {
         status: 503,
         statusText: 'Service Unavailable',
@@ -232,19 +224,17 @@ function fallbackResponse(request) {
 }
 
 
-// ============ BACKGROUND SYNC (Future Enhancement) ============
+// ============ BACKGROUND SYNC ============
 self.addEventListener('sync', function(event) {
     if (event.tag === 'sync-data') {
         console.log('[SW] Background sync triggered');
-        // Firebase handles sync automatically via persistence
     }
 });
 
 
-// ============ PUSH NOTIFICATIONS (Future Enhancement) ============
+// ============ PUSH NOTIFICATIONS ============
 self.addEventListener('push', function(event) {
     if (!event.data) return;
-
     var data = event.data.json();
     var options = {
         body: data.body || 'New update available',
@@ -257,7 +247,6 @@ self.addEventListener('push', function(event) {
             { action: 'dismiss', title: 'Dismiss' }
         ]
     };
-
     event.waitUntil(
         self.registration.showNotification(data.title || 'Meri Dukaan', options)
     );
@@ -265,18 +254,14 @@ self.addEventListener('push', function(event) {
 
 self.addEventListener('notificationclick', function(event) {
     event.notification.close();
-
     if (event.action === 'dismiss') return;
-
     event.waitUntil(
         clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(clientList) {
-            // Focus existing window if open
             for (var i = 0; i < clientList.length; i++) {
                 if (clientList[i].url.indexOf('index.html') !== -1 && 'focus' in clientList[i]) {
                     return clientList[i].focus();
                 }
             }
-            // Otherwise open new window
             if (clients.openWindow) {
                 return clients.openWindow(event.notification.data.url || './');
             }
@@ -290,7 +275,6 @@ self.addEventListener('message', function(event) {
     if (event.data && event.data.type === 'GET_VERSION') {
         event.ports[0].postMessage({ version: CACHE_VERSION });
     }
-
     if (event.data && event.data.type === 'SKIP_WAITING') {
         self.skipWaiting();
     }
