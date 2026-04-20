@@ -34,7 +34,7 @@
     <link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
 
     <!-- Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 
     <!-- Firebase -->
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
@@ -79,7 +79,7 @@
         <div class="splash-loader">
             <div class="splash-bar"></div>
         </div>
-        <p class="splash-version">v4.0</p>
+        <p class="splash-version">v6.0</p>
     </div>
 </div>
 
@@ -264,10 +264,13 @@
             <button class="act-btn" onclick="goTo('reportScreen')" aria-label="View reports and analytics">
                 <div class="ab-i ab5" aria-hidden="true">📊</div><span>Reports</span>
             </button>
-            <button class="act-btn" onclick="goTo('settingScreen')" aria-label="App settings">
-                <div class="ab-i ab6" aria-hidden="true">⚙️</div><span>Settings</span>
+            <button class="act-btn" onclick="goTo('analyticsScreen')" aria-label="Analytics and insights">
+                <div class="ab-i ab-analytics" aria-hidden="true">🔍</div><span>Analytics</span>
             </button>
         </div>
+
+        <!-- Smart Insights — Phase 2+3 -->
+        <div id="dashInsights" style="display:none"></div>
 
         <!-- Today's Activity -->
         <h3 class="sec-t">Today's Activity</h3>
@@ -345,6 +348,13 @@
         <div class="sm-sep" aria-hidden="true"></div>
         <div class="sm-i"><strong class="amber" id="sCredit">₹0</strong><small>Credit</small></div>
     </div>
+    <!-- Phase 3: Batch Select Toolbar -->
+    <div id="batchToolbar" class="batch-toolbar" aria-live="polite">
+        <span id="batchCount" class="batch-count">0 selected</span>
+        <button class="batch-sel-all" onclick="selectAllSales()">Select All</button>
+        <button id="batchDeleteBtn" class="batch-del-btn" onclick="batchDeleteSelected()" disabled aria-label="Delete selected sales">🗑️ Delete</button>
+    </div>
+    <!-- Phase 3: Batch button in page top area (added via JS or via fixed position) -->
     <div class="pg-body" id="salesList" aria-live="polite"></div>
 </div>
 
@@ -421,8 +431,17 @@
         <div></div>
     </div>
     <div class="udh-hero">
-        <p>Total Credit Pending</p>
-        <h2 id="cTotalPending">₹0</h2>
+        <div class="udh-hero-row">
+            <div class="udh-stat">
+                <p>Pending</p>
+                <h2 id="cTotalPending">₹0</h2>
+            </div>
+            <div class="udh-sep" id="cAdvanceSection" style="display:none"></div>
+            <div class="udh-stat advance" id="cAdvanceSection" style="display:none">
+                <p>Advance</p>
+                <h2 id="cTotalAdvance">₹0</h2>
+            </div>
+        </div>
     </div>
     <div class="pg-body" id="creditList" aria-live="polite"></div>
 </div>
@@ -579,7 +598,7 @@
         </div>
 
         <div class="app-foot">
-            <p>🫓 Meri Dukaan v4.0</p>
+            <p>🫓 Meri Dukaan v6.0</p>
             <p>Cloud-powered Business Management</p>
             <p class="app-foot-sub">Made with ❤️ for small businesses</p>
         </div>
@@ -649,6 +668,8 @@
         <div class="dup-warn" id="sfDupWarn" style="display:none" role="alert">
             ⚠️ <span id="sfDupText">This customer already has a sale today</span>
         </div>
+        <!-- Phase 3: Advance credit notice -->
+        <div class="adv-notice" id="sfAdvanceBanner" style="display:none" role="status"></div>
 
         <form id="saleForm" onsubmit="saveSale(event)" novalidate>
             <input type="hidden" id="sfId">
@@ -836,10 +857,16 @@
         <form id="crpForm" onsubmit="saveCreditPayment(event)" novalidate>
             <input type="hidden" id="crpCustId">
             <input type="hidden" id="crpCustName">
+            <input type="hidden" id="crpPayId">
 
             <div class="fg">
                 <label for="crpAmount">Amount (₹) *</label>
                 <input type="number" id="crpAmount" required min="1" max="9999999" inputmode="numeric" placeholder="Payment amount">
+            </div>
+
+            <div class="fg">
+                <label for="crpDate">Payment Date</label>
+                <input type="date" id="crpDate" class="fg input" style="width:100%;padding:14px 16px;border:1.5px solid var(--bg2);border-radius:var(--rs);font-size:16px;color:var(--tx);background:var(--card);outline:none;font-family:inherit">
             </div>
 
             <div class="fg">
@@ -1016,10 +1043,213 @@
 </div>
 
 
+
+<!-- ======================================================
+     NOTEBOOK SCREEN ★ v5.0
+     ====================================================== -->
+<div id="notebookScreen" class="screen" role="main">
+    <div class="hdr">
+        <div class="hdr-left">
+            <div class="hdr-title">📓 Notebook</div>
+            <div class="hdr-sub" id="noteCount">0 notes</div>
+        </div>
+        <div class="hdr-acts">
+            <button class="hdr-btn" onclick="openNoteForm()" aria-label="Add new note">+</button>
+        </div>
+    </div>
+    <div class="search-bar">
+        <input type="text" class="search-inp" id="noteSearch" placeholder="🔍 Notes search karo..." oninput="searchNotes(this.value)" autocomplete="off">
+    </div>
+    <div class="list-wrap" id="noteList" aria-live="polite"></div>
+</div>
+
+
+<!-- ======================================================
+     OVERLAY: NOTE FORM ★ v5.0
+     ====================================================== -->
+<div id="noteFormOverlay" class="overlay" role="dialog" aria-modal="true" aria-labelledby="nfFormTitle">
+    <div class="ov-hdr">
+        <h3 id="nfFormTitle">Naya Note</h3>
+        <button class="ov-close" onclick="closeOverlay('noteFormOverlay')" aria-label="Close">✕</button>
+    </div>
+    <div style="padding:20px;padding-bottom:calc(40px + var(--safe-b))">
+        <form id="noteForm" onsubmit="saveNote(event)" novalidate>
+            <input type="hidden" id="nfId">
+            <div class="form-group">
+                <label class="form-label">Title <span class="form-opt">(optional)</span></label>
+                <input type="text" class="form-inp" id="nfTitle" placeholder="e.g. Sharma Ji ka number" maxlength="100" autocomplete="off">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Note <span class="form-req">*</span></label>
+                <textarea class="form-inp form-ta" id="nfContent" placeholder="Yahan likho..." rows="5" maxlength="2000" required></textarea>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Category</label>
+                <div style="display:flex;flex-wrap:wrap;gap:8px">
+                    <button type="button" class="note-cat-btn active" data-cat="general" onclick="setNoteCategory('general',this)">📝 General</button>
+                    <button type="button" class="note-cat-btn" data-cat="reminder" onclick="setNoteCategory('reminder',this)">🔔 Reminder</button>
+                    <button type="button" class="note-cat-btn" data-cat="idea" onclick="setNoteCategory('idea',this)">💡 Idea</button>
+                    <button type="button" class="note-cat-btn" data-cat="supplier" onclick="setNoteCategory('supplier',this)">🏪 Supplier</button>
+                </div>
+                <input type="hidden" id="nfCategory" value="general">
+            </div>
+            <div class="form-group">
+                <label class="pin-toggle-label">
+                    <input type="checkbox" class="pin-toggle-inp" id="nfPinned">
+                    <span class="pin-toggle-text">📌 Pin this note (important)</span>
+                </label>
+            </div>
+            <button type="submit" id="nfSubmitBtn" class="form-btn">💾 Note Save Karo</button>
+        </form>
+    </div>
+</div>
+
+
+
+<!-- ======================================================
+     ANALYTICS SCREEN ★ PHASE 2
+     ====================================================== -->
+<div id="analyticsScreen" class="screen" role="main">
+    <div class="pg-top">
+        <button class="pg-back" onclick="goTo('dashboardScreen')" aria-label="Go back">‹</button>
+        <h2>Analytics</h2>
+        <div></div>
+    </div>
+    <div class="pg-body" style="padding-top:16px">
+        <div class="an-section-hdr">
+            <div class="an-section-ic">📦</div>
+            <div>
+                <div class="an-section-title">Stock Tracker</div>
+                <div class="an-section-sub">Atta & Oil kitne din aur chalega</div>
+            </div>
+        </div>
+        <div id="anStockCards"></div>
+
+        <div class="an-section-hdr" style="margin-top:20px">
+            <div class="an-section-ic">💹</div>
+            <div>
+                <div class="an-section-title">Price Trend</div>
+                <div class="an-section-sub">Rate history aur comparison</div>
+            </div>
+        </div>
+        <div class="an-card">
+            <div class="price-cat-row">
+                <button class="price-cat-btn active" onclick="switchPriceCategory('atta',this)">🌾 Atta</button>
+                <button class="price-cat-btn" onclick="switchPriceCategory('oil',this)">🛢️ Oil</button>
+            </div>
+            <div id="anPriceContent" style="margin-top:12px"></div>
+        </div>
+
+        <div class="an-section-hdr" style="margin-top:20px">
+            <div class="an-section-ic">📅</div>
+            <div>
+                <div class="an-section-title">Day-wise Sales</div>
+                <div class="an-section-sub">Konsa din sabse acha hai</div>
+            </div>
+        </div>
+        <div class="an-card" id="anHeatmapContent"></div>
+
+        <div class="an-section-hdr" style="margin-top:20px">
+            <div class="an-section-ic">⚖️</div>
+            <div>
+                <div class="an-section-title">Unit Economics</div>
+                <div class="an-section-sub">Per roti cost, profit aur margin</div>
+            </div>
+        </div>
+        <div class="an-card" id="anUnitContent"></div>
+    </div>
+</div>
+
+
+<!-- ======================================================
+     CUSTOMER PROFILE OVERLAY ★ PHASE 2
+     ====================================================== -->
+<div id="customerProfileOverlay" class="overlay" role="dialog" aria-label="Customer Profile" aria-modal="true">
+    <div class="pg-top">
+        <button class="pg-back" onclick="closeOverlay('customerProfileOverlay')" aria-label="Close">‹</button>
+        <h2>Customer Profile</h2>
+        <div></div>
+    </div>
+    <div class="frm-body" style="padding-top:0">
+        <div class="cp-header">
+            <div class="cp-avatar" aria-hidden="true">👤</div>
+            <div class="cp-info">
+                <div class="cp-name" id="cpName">Customer</div>
+                <div class="cp-sub" id="cpSub"></div>
+                <div class="cp-phone" id="cpPhone" style="display:none"></div>
+            </div>
+        </div>
+        <div class="cp-stats-grid">
+            <div class="cp-stat-card"><span class="cp-stat-val" id="cpTotalOrders">0</span><span class="cp-stat-lbl">Orders</span></div>
+            <div class="cp-stat-card"><span class="cp-stat-val" id="cpTotalRoti">0</span><span class="cp-stat-lbl">Total Roti</span></div>
+            <div class="cp-stat-card"><span class="cp-stat-val green" id="cpTotalAmt">₹0</span><span class="cp-stat-lbl">Revenue</span></div>
+            <div class="cp-stat-card"><span class="cp-stat-val" id="cpAvgOrder">0</span><span class="cp-stat-lbl">Avg Order</span></div>
+            <div class="cp-stat-card"><span class="cp-stat-val" id="cpActiveDays">0</span><span class="cp-stat-lbl">Active Days</span></div>
+            <div class="cp-stat-card"><span class="cp-stat-val" id="cpBestDay">—</span><span class="cp-stat-lbl">Best Day</span></div>
+        </div>
+        <div class="an-card" style="margin:12px 0">
+            <div class="ud-row"><span class="ud-label">First order</span><span class="ud-val" id="cpFirstOrder">—</span></div>
+            <div class="ud-row" style="border:none"><span class="ud-label">Last order</span><span class="ud-val" id="cpLastOrder">—</span></div>
+        </div>
+        <div class="an-section-hdr" style="margin-top:4px">
+            <div class="an-section-ic">💳</div>
+            <div class="an-section-title">Payment Preference</div>
+        </div>
+        <div class="an-card"><div style="height:160px;position:relative"><canvas id="cpPayChart"></canvas></div></div>
+        <div class="an-section-hdr" style="margin-top:4px">
+            <div class="an-section-ic">📅</div>
+            <div class="an-section-title">Orders by Day</div>
+        </div>
+        <div class="an-card"><div style="height:120px;position:relative"><canvas id="cpDayChart"></canvas></div></div>
+        <div id="cpCreditSection">
+            <div class="an-section-hdr" style="margin-top:4px">
+                <div class="an-section-ic">🎯</div>
+                <div class="an-section-title">Credit Reliability</div>
+            </div>
+            <div class="an-card">
+                <div class="ud-row"><span class="ud-label">Credit given</span><span class="ud-val amber" id="cpCreditGiven">₹0</span></div>
+                <div class="ud-row"><span class="ud-label">Credit paid</span><span class="ud-val green" id="cpCreditPaid">₹0</span></div>
+                <div class="ud-row" style="border:none"><span class="ud-label">Pending</span><span class="cp-stat-val" id="cpCreditPending">₹0</span></div>
+                <div style="margin-top:12px">
+                    <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+                        <span style="font-size:12px;color:var(--tx2);font-weight:600">Payment Reliability</span>
+                        <span style="font-size:13px;font-weight:800" id="cpReliabilityPct">100%</span>
+                    </div>
+                    <div class="reliability-bar-bg"><div class="reliability-bar-fill" id="cpReliabilityScore" style="width:100%"></div></div>
+                </div>
+            </div>
+        </div>
+        <div class="an-section-hdr" style="margin-top:4px">
+            <div class="an-section-ic">🧾</div>
+            <div class="an-section-title">Recent Orders</div>
+        </div>
+        <div class="an-card"><div id="cpRecentOrders"></div></div>
+    </div>
+</div>
+
+
+<!-- ======================================================
+     PWA INSTALL BANNER ★ PHASE 3
+     ====================================================== -->
+<div id="installBanner" class="install-banner" role="complementary" aria-label="Install app">
+    <div class="ib-content">
+        <span class="ib-icon">🫓</span>
+        <div class="ib-text">
+            <strong>Install Meri Dukaan</strong>
+            <span>Home screen pe add karo — faster access!</span>
+        </div>
+    </div>
+    <div class="ib-btns">
+        <button class="ib-install" onclick="triggerInstall()">Install</button>
+        <button class="ib-dismiss" onclick="hideInstallBanner()" aria-label="Dismiss">✕</button>
+    </div>
+</div>
+
+
 <!-- ======================================================
      BOTTOM NAVIGATION
      ====================================================== -->
-<nav class="bnav" id="bottomNav" role="navigation" aria-label="Main navigation">
+<nav id="bottomNav" class="bnav bnav-6" role="navigation" aria-label="Main navigation">
     <button class="bn-i active" data-s="dashboardScreen" onclick="goTo('dashboardScreen')" aria-label="Home dashboard" aria-current="page">
         <span class="bn-ic" aria-hidden="true">🏠</span>
         <span>Home</span>
@@ -1036,9 +1266,13 @@
         <span class="bn-ic" aria-hidden="true">💳</span>
         <span>Credit</span>
     </button>
-    <button class="bn-i" data-s="reportScreen" onclick="goTo('reportScreen')" aria-label="Reports and analytics">
+    <button class="bn-i" data-s="reportScreen" onclick="goTo('reportScreen')" aria-label="Reports">
         <span class="bn-ic" aria-hidden="true">📊</span>
         <span>Reports</span>
+    </button>
+    <button class="bn-i" data-s="notebookScreen" onclick="goTo('notebookScreen')" aria-label="Notebook notes">
+        <span class="bn-ic" aria-hidden="true">📓</span>
+        <span>Notes</span>
     </button>
 </nav>
 
@@ -1046,7 +1280,13 @@
 <!-- ======================================================
      SCRIPTS
      ====================================================== -->
-<script src="app.js"></script>
+<script src="js/core.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/data.js"></script>
+<script src="js/reports.js"></script>
+<script src="js/settings.js"></script>
+<script src="js/notebook.js"></script>
+<script src="js/analytics.js"></script>
 
 <!-- Service Worker Registration -->
 <script>
