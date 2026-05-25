@@ -2,7 +2,7 @@
 <html lang="en" dir="ltr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
     <title>Meri Dukaan — Business Manager</title>
 
     <!-- SEO & Meta -->
@@ -49,6 +49,9 @@
     <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style-additions.css">
+    <!-- EmailJS SDK for email alerts -->
+    <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js" defer></script>
 </head>
 <body>
 
@@ -79,7 +82,7 @@
         <div class="splash-loader">
             <div class="splash-bar"></div>
         </div>
-        <p class="splash-version">v6.0</p>
+        <p class="splash-version">v7.0</p>
     </div>
 </div>
 
@@ -193,6 +196,7 @@
                 </div>
                 <div class="dh-actions">
                     <button class="dh-icon-btn" id="themeTogBtn" onclick="cycleTheme()" aria-label="Change theme">🌙</button>
+                    <button class="dh-icon-btn" onclick="goTo('settingScreen')" aria-label="Settings">⚙️</button>
                     <button class="dh-icon-btn" onclick="lockApp()" aria-label="Lock app">🔒</button>
                 </div>
             </div>
@@ -325,6 +329,7 @@
     <div class="pg-top">
         <button class="pg-back" onclick="goTo('dashboardScreen')" aria-label="Go back">‹</button>
         <h2>Sales</h2>
+        <button class="pg-act-sec" id="batchModeBtn" onclick="enterBatchMode()" aria-label="Select multiple">Select</button>
         <button class="pg-act" onclick="openSaleForm()" aria-label="Add new sale">+ Add</button>
     </div>
     <div class="dt-nav">
@@ -436,7 +441,7 @@
                 <p>Pending</p>
                 <h2 id="cTotalPending">₹0</h2>
             </div>
-            <div class="udh-sep" id="cAdvanceSection" style="display:none"></div>
+            <div class="udh-sep" id="cAdvanceSep" style="display:none"></div>
             <div class="udh-stat advance" id="cAdvanceSection" style="display:none">
                 <p>Advance</p>
                 <h2 id="cTotalAdvance">₹0</h2>
@@ -573,7 +578,7 @@
             <div class="si-ic si-green">📱</div>
             <div class="si-tx">
                 <h4>App Version</h4>
-                <p id="appVersionText">v4.0 • PWA</p>
+                <p id="appVersionText">v7.0 • PWA</p>
             </div>
             <span class="si-go" aria-hidden="true" id="updateBadge" style="display:none">🔄</span>
         </div>
@@ -598,7 +603,7 @@
         </div>
 
         <div class="app-foot">
-            <p>🫓 Meri Dukaan v6.0</p>
+            <p>🫓 Meri Dukaan v7.0</p>
             <p>Cloud-powered Business Management</p>
             <p class="app-foot-sub">Made with ❤️ for small businesses</p>
         </div>
@@ -1110,55 +1115,113 @@
      ANALYTICS SCREEN ★ PHASE 2
      ====================================================== -->
 <div id="analyticsScreen" class="screen" role="main">
-    <div class="pg-top">
-        <button class="pg-back" onclick="goTo('dashboardScreen')" aria-label="Go back">‹</button>
-        <h2>Analytics</h2>
-        <div></div>
+
+  <!-- Page Header -->
+  <div class="pg-top">
+    <button class="pg-back" onclick="goTo('dashboardScreen')" aria-label="Back">‹</button>
+    <h2>Analytics</h2>
+    <span></span>
+  </div>
+
+  <div class="pg-body">
+
+    <!-- ── SMART INSIGHTS ─────────────────────────── -->
+    <div class="an-section">
+      <div class="an-section-title">💡 Smart Insights</div>
+      <div class="an-section-sub">Live alerts based on your current business data</div>
+      <div id="dashInsights">
+        <div class="no-data" style="font-size:13px">Loading insights...</div>
+      </div>
     </div>
-    <div class="pg-body" style="padding-top:16px">
-        <div class="an-section-hdr">
-            <div class="an-section-ic">📦</div>
-            <div>
-                <div class="an-section-title">Stock Tracker</div>
-                <div class="an-section-sub">Atta & Oil kitne din aur chalega</div>
-            </div>
-        </div>
-        <div id="anStockCards"></div>
 
-        <div class="an-section-hdr" style="margin-top:20px">
-            <div class="an-section-ic">💹</div>
-            <div>
-                <div class="an-section-title">Price Trend</div>
-                <div class="an-section-sub">Rate history aur comparison</div>
-            </div>
-        </div>
-        <div class="an-card">
-            <div class="price-cat-row">
-                <button class="price-cat-btn active" onclick="switchPriceCategory('atta',this)">🌾 Atta</button>
-                <button class="price-cat-btn" onclick="switchPriceCategory('oil',this)">🛢️ Oil</button>
-            </div>
-            <div id="anPriceContent" style="margin-top:12px"></div>
-        </div>
-
-        <div class="an-section-hdr" style="margin-top:20px">
-            <div class="an-section-ic">📅</div>
-            <div>
-                <div class="an-section-title">Day-wise Sales</div>
-                <div class="an-section-sub">Konsa din sabse acha hai</div>
-            </div>
-        </div>
-        <div class="an-card" id="anHeatmapContent"></div>
-
-        <div class="an-section-hdr" style="margin-top:20px">
-            <div class="an-section-ic">⚖️</div>
-            <div>
-                <div class="an-section-title">Unit Economics</div>
-                <div class="an-section-sub">Per roti cost, profit aur margin</div>
-            </div>
-        </div>
-        <div class="an-card" id="anUnitContent"></div>
+    <!-- ── STOCK TRACKER ──────────────────────────── -->
+    <div class="an-section">
+      <div class="an-section-title">📦 Stock Tracker</div>
+      <div class="an-section-sub">Atta & Oil — true remaining stock, not just last purchase</div>
+      <div id="stockTrackerBody">
+        <div class="no-data" style="font-size:13px">Loading stock data...</div>
+      </div>
     </div>
-</div>
+
+    <!-- ── PRICE TREND ────────────────────────────── -->
+    <div class="an-section">
+      <div class="an-section-title">📈 Price Trend</div>
+      <div class="an-section-sub">Rate history and price comparison</div>
+
+      <div class="price-cat-row">
+        <button class="price-cat-btn active" data-cat="atta"
+                onclick="renderPriceTrend('atta')" aria-label="View atta price trend">
+          🌾 Atta
+        </button>
+        <button class="price-cat-btn" data-cat="oil"
+                onclick="renderPriceTrend('oil')" aria-label="View oil price trend">
+          🛢️ Oil
+        </button>
+      </div>
+
+      <div id="priceTrendChart" style="height:140px;"></div>
+      <div id="priceBadges" class="price-badges" style="margin-top:12px"></div>
+    </div>
+
+    <!-- ── DAY-WISE SALES + FORECAST ─────────────── -->
+    <div class="an-section">
+      <div class="an-section-title">📅 Day-wise Sales</div>
+      <div class="an-section-sub">Which day earns the most — pattern detection</div>
+
+      <div class="an-window-row">
+        <button class="an-window-btn active"
+                onclick="setAnalyticsWindow(30, this)">30 Days</button>
+        <button class="an-window-btn"
+                onclick="setAnalyticsWindow(90, this)">90 Days</button>
+        <button class="an-window-btn"
+                onclick="setAnalyticsWindow(0, this)">All Time</button>
+      </div>
+
+      <div id="dayWiseSalesBody">
+        <div class="no-data" style="font-size:13px">Loading...</div>
+      </div>
+
+      <div style="margin-top:16px;">
+        <div style="font-size:12px;font-weight:700;color:var(--tx2);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px;">
+          📊 7-Day Revenue Forecast
+        </div>
+        <div id="forecastBody">
+          <div class="no-data" style="font-size:12px">Forecast requires 5+ days of data</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── UNIT ECONOMICS ─────────────────────────── -->
+    <div class="an-section">
+      <div class="an-section-title">⚖️ Unit Economics</div>
+      <div class="an-section-sub">True profit per roti — all costs included</div>
+
+      <!-- Gauge -->
+      <div class="ue-gauge-wrap">
+        <div class="ue-gauge-outer">
+          <div class="ue-gauge-fill" id="ueGaugeFill"
+               style="transform:rotate(-90deg);background:var(--gn)"></div>
+        </div>
+        <div class="ue-gauge-center" id="ueMarginPct">—%</div>
+        <div class="ue-gauge-label">True Profit Margin</div>
+      </div>
+
+      <div id="unitEconBody">
+        <div class="no-data" style="font-size:13px">Loading economics data...</div>
+      </div>
+    </div>
+
+    <!-- ── CUSTOMER INSIGHTS ──────────────────────── -->
+    <div class="an-section">
+      <div class="an-section-title">👥 Customer Insights</div>
+      <div class="an-section-sub">Top customers by revenue with risk scoring</div>
+      <div id="customerInsightsBody">
+        <div class="no-data" style="font-size:13px">Loading customer data...</div>
+      </div>
+    </div>
+
+  </div><!-- end pg-body -->
+</div><!-- end analyticsScreen -->
 
 
 <!-- ======================================================
@@ -1287,6 +1350,7 @@
 <script src="js/settings.js"></script>
 <script src="js/notebook.js"></script>
 <script src="js/analytics.js"></script>
+<script src="js/email.js"></script>
 
 <!-- Service Worker Registration -->
 <script>
@@ -1386,5 +1450,12 @@ window.addEventListener('offline', function() {
 updateOfflineBanner();
 </script>
 
+<script>
+(function(){
+    var params=new URLSearchParams(window.location.search);
+    var t=params.get("screen");
+    if(t) localStorage.setItem("mdShortcutTarget",t);
+})();
+</script>
 </body>
 </html>
