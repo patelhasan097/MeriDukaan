@@ -1,971 +1,1461 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en" dir="ltr">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="Meri Dukaan">
-  <meta name="description" content="Roti Business Manager — Sales, Credit, Expenses, Analytics. Free PWA.">
-  <title>Meri Dukaan</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+    <title>Meri Dukaan — Business Manager</title>
 
-  <!-- ✅ CSP — v7 had none. Now blocks XSS, script injection, etc. -->
-  <meta http-equiv="Content-Security-Policy" content="
-    default-src 'self';
-    script-src  'self' 'unsafe-inline' https://storage.googleapis.com https://www.gstatic.com
-                https://cdnjs.cloudflare.com https://cdn.jsdelivr.net;
-    connect-src 'self' https://*.googleapis.com https://*.firebaseio.com
-                https://firestore.googleapis.com wss://*.firebaseio.com;
-    style-src   'self' 'unsafe-inline' https://fonts.googleapis.com;
-    font-src    'self' https://fonts.gstatic.com;
-    img-src     'self' data: https:;
-    frame-src   'none';
-    object-src  'none';
-    base-uri    'self';
-  ">
+    <!-- SEO & Meta -->
+    <meta name="description" content="Meri Dukaan — Roti Business Management App. Track daily sales, expenses, customer credit, waste and generate PDF reports. Free, offline-ready PWA.">
+    <meta name="author" content="Meri Dukaan">
+    <meta name="keywords" content="roti business, sales tracker, expense manager, credit register, business app">
 
-  <!-- ✅ Font loaded ONCE via preconnect + single link (v7 loaded twice) -->
-  <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap">
+    <!-- PWA -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#1a1a2e">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Meri Dukaan">
+    <meta name="application-name" content="Meri Dukaan">
+    <meta name="msapplication-TileColor" content="#e65100">
+    <meta name="msapplication-navbutton-color" content="#1a1a2e">
 
-  <link rel="manifest" href="manifest.json">
-  <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <meta name="theme-color" content="#e65100">
+    <!-- Favicons -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23e65100'/><text x='50' y='68' font-size='55' text-anchor='middle' fill='white'>🫓</text></svg>">
+    <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+    <link rel="apple-touch-icon" sizes="192x192" href="icons/icon-192.png">
+    <link rel="apple-touch-icon" sizes="512x512" href="icons/icon-512.png">
 
-  <!-- Tabler Icons SVG set (replaces emoji nav icons — consistent across all Android OEMs) -->
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.7.0/dist/tabler-icons.min.css">
+    <!-- Preconnect for performance -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
 
-  <!-- App CSS -->
-  <link rel="stylesheet" href="style.css">
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 
-  <!-- ✅ Firebase Modular SDK via importmap (replaces 3 compat bundles: 200KB→45KB) -->
-  <script type="importmap">
-  {
-    "imports": {
-      "firebase/app":       "https://www.gstatic.com/firebasejs/10.14.0/firebase-app.js",
-      "firebase/auth":      "https://www.gstatic.com/firebasejs/10.14.0/firebase-auth.js",
-      "firebase/firestore": "https://www.gstatic.com/firebasejs/10.14.0/firebase-firestore.js",
-      "firebase/messaging": "https://www.gstatic.com/firebasejs/10.14.0/firebase-messaging.js"
-    }
-  }
-  </script>
+    <!-- Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+
+    <!-- Charts (defer — not critical for first paint) -->
+    <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+    <!-- PDF (defer — only needed when user clicks export) -->
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style-additions.css">
+    <!-- EmailJS SDK for email alerts -->
+    <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js" defer></script>
 </head>
-
 <body>
-  <!-- ── SPLASH ──────────────────────────────────────────────────────── -->
-  <div id="splash" role="status" aria-label="Loading Meri Dukaan">
-    <div class="splash__inner">
-      <div class="splash__logo">🫓</div>
-      <div class="splash__name">Meri Dukaan</div>
-      <div class="splash__tagline">Loading your business…</div>
-      <div class="splash__spinner" aria-hidden="true"></div>
+
+<!-- No JS Fallback -->
+<noscript>
+    <div style="text-align:center;padding:60px 24px;font-family:'Inter',sans-serif;background:#121212;color:#e0e0e0;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center">
+        <div style="font-size:64px;margin-bottom:16px">🫓</div>
+        <h2 style="margin-bottom:8px;font-size:22px">Meri Dukaan</h2>
+        <p style="color:#a0a0a0;font-size:14px;max-width:300px;line-height:1.6">
+            JavaScript enable karein apne browser mein is app ko use karne ke liye.
+            <br><br>
+            Please enable JavaScript in your browser settings to use this app.
+        </p>
     </div>
-  </div>
+</noscript>
 
-  <!-- ── OFFLINE BANNER ─────────────────────────────────────────────── -->
-  <div id="offlineBanner" role="alert" aria-live="polite">
-    <i class="ti ti-wifi-off"></i>
-    <span>You are offline — changes will sync when reconnected</span>
-  </div>
 
-  <!-- ── MAIN APP ────────────────────────────────────────────────────── -->
-  <div id="app">
-
-    <!-- ════════════════════════════════════════════════════════════════
-         SCREEN: LOGIN
-    ═══════════════════════════════════════════════════════════════════ -->
-    <section id="loginScreen" class="screen" aria-label="Login" aria-hidden="true">
-      <div class="login-bg" aria-hidden="true">
-        <div class="lb lb1"></div><div class="lb lb2"></div><div class="lb lb3"></div>
-      </div>
-      <div class="login-content">
-        <div class="login-logo">🫓</div>
-        <h1 class="login-title" data-i18n="login_title">Welcome to Meri Dukaan</h1>
-        <p  class="login-sub"   data-i18n="login_sub">Your complete roti business manager</p>
-        <div class="login-features" aria-hidden="true">
-          <span>📊 Sales</span><span>📒 Credit</span><span>💸 Expenses</span><span>📈 Analytics</span>
+<!-- ======================================================
+     SPLASH SCREEN
+     ====================================================== -->
+<div id="splashScreen" class="screen splash-screen active" role="status" aria-label="Loading app">
+    <div class="splash-content">
+        <div class="splash-icon-wrap">
+            <div class="splash-roti">🫓</div>
         </div>
-        <button id="googleSignInBtn" class="btn btn--google" onclick="signInWithGoogle()" aria-label="Sign in with Google">
-          <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
-          Sign in with Google
-        </button>
-        <p class="login-notice">Free forever · No subscription · Your data is yours</p>
-      </div>
-    </section>
-
-    <!-- ════════════════════════════════════════════════════════════════
-         SCREEN: PIN SETUP
-    ═══════════════════════════════════════════════════════════════════ -->
-    <section id="pinSetupScreen" class="screen screen--pin" aria-label="Create PIN" aria-hidden="true">
-      <div class="pin-screen">
-        <div class="pin-screen__icon" aria-hidden="true">🔐</div>
-        <h2 class="pin-screen__title" id="pinScreenLabel" data-i18n="setup_pin">Create a 4-digit PIN to secure your business</h2>
-        <div class="pin-dots" id="pinDots" role="status" aria-live="polite">
-          <span class="pin-dot" aria-hidden="true"></span>
-          <span class="pin-dot" aria-hidden="true"></span>
-          <span class="pin-dot" aria-hidden="true"></span>
-          <span class="pin-dot" aria-hidden="true"></span>
+        <h1 class="splash-title">Meri Dukaan</h1>
+        <p class="splash-sub">Business Management</p>
+        <div class="splash-loader">
+            <div class="splash-bar"></div>
         </div>
-        <span id="pinSrStatus" class="sr-only" aria-live="polite" aria-atomic="true"></span>
-        <div class="pin-keypad" role="group" aria-label="Number pad">
-          <button class="pin-key" onclick="pinKey('1')" aria-label="1">1</button>
-          <button class="pin-key" onclick="pinKey('2')" aria-label="2">2</button>
-          <button class="pin-key" onclick="pinKey('3')" aria-label="3">3</button>
-          <button class="pin-key" onclick="pinKey('4')" aria-label="4">4</button>
-          <button class="pin-key" onclick="pinKey('5')" aria-label="5">5</button>
-          <button class="pin-key" onclick="pinKey('6')" aria-label="6">6</button>
-          <button class="pin-key" onclick="pinKey('7')" aria-label="7">7</button>
-          <button class="pin-key" onclick="pinKey('8')" aria-label="8">8</button>
-          <button class="pin-key" onclick="pinKey('9')" aria-label="9">9</button>
-          <div></div>
-          <button class="pin-key" onclick="pinKey('0')" aria-label="0">0</button>
-          <button class="pin-key pin-key--back" onclick="pinBackspace()" aria-label="Delete">⌫</button>
+        <p class="splash-version">v7.0</p>
+    </div>
+</div>
+
+
+<!-- ======================================================
+     GOOGLE LOGIN SCREEN
+     ====================================================== -->
+<div id="loginScreen" class="screen login-screen" role="main">
+    <div class="login-bg" aria-hidden="true">
+        <div class="lb1"></div>
+        <div class="lb2"></div>
+        <div class="lb3"></div>
+    </div>
+    <div class="login-content">
+        <div class="login-brand">
+            <div class="login-icon" aria-hidden="true">🫓</div>
+            <h1>Meri Dukaan</h1>
+            <p>Roti Business Management</p>
         </div>
-      </div>
-    </section>
-
-    <!-- ════════════════════════════════════════════════════════════════
-         SCREEN: PIN ENTRY
-    ═══════════════════════════════════════════════════════════════════ -->
-    <section id="pinScreen" class="screen screen--pin" aria-label="Enter PIN" aria-hidden="true">
-      <div class="pin-screen">
-        <div class="pin-screen__icon" aria-hidden="true">🔒</div>
-        <h2 class="pin-screen__title" data-i18n="enter_pin">Enter your PIN</h2>
-        <div class="pin-dots" id="pinDots" role="status">
-          <span class="pin-dot" aria-hidden="true"></span>
-          <span class="pin-dot" aria-hidden="true"></span>
-          <span class="pin-dot" aria-hidden="true"></span>
-          <span class="pin-dot" aria-hidden="true"></span>
-        </div>
-        <span id="pinSrStatus" class="sr-only" aria-live="polite" aria-atomic="true"></span>
-        <div class="pin-keypad" role="group" aria-label="Number pad">
-          <button class="pin-key" onclick="pinKey('1')">1</button><button class="pin-key" onclick="pinKey('2')">2</button><button class="pin-key" onclick="pinKey('3')">3</button>
-          <button class="pin-key" onclick="pinKey('4')">4</button><button class="pin-key" onclick="pinKey('5')">5</button><button class="pin-key" onclick="pinKey('6')">6</button>
-          <button class="pin-key" onclick="pinKey('7')">7</button><button class="pin-key" onclick="pinKey('8')">8</button><button class="pin-key" onclick="pinKey('9')">9</button>
-          <button class="pin-key pin-key--bio" onclick="tryBiometricLogin()" aria-label="Fingerprint login">
-            <i class="ti ti-fingerprint"></i>
-          </button>
-          <button class="pin-key" onclick="pinKey('0')">0</button>
-          <button class="pin-key pin-key--back" onclick="pinBackspace()" aria-label="Delete">⌫</button>
-        </div>
-        <button class="pin-screen__signout" onclick="signOutApp()">Sign out</button>
-      </div>
-    </section>
-
-    <!-- ════════════════════════════════════════════════════════════════
-         SCREEN: DASHBOARD
-    ═══════════════════════════════════════════════════════════════════ -->
-    <section id="dashboardScreen" class="screen" aria-label="Dashboard" aria-hidden="true">
-      <div class="pg-head pg-head--dashboard">
-        <div>
-          <div id="dashGreeting" class="dash-greeting">Good morning!</div>
-          <div class="dash-sub" id="dashBizName"></div>
-        </div>
-        <button class="icon-btn" onclick="goTo('settingsScreen')" aria-label="Settings">
-          <i class="ti ti-settings"></i>
-          <span id="notifBadge" class="notif-badge" aria-label="Unread notifications" style="display:none"></span>
-        </button>
-      </div>
-
-      <!-- Period toggle -->
-      <div class="period-bar" role="group" aria-label="Time period">
-        <button class="period-btn period-btn--active" data-dash-period="today"  onclick="setDashPeriod('today')"  data-i18n="period_today">Today</button>
-        <button class="period-btn" data-dash-period="week"   onclick="setDashPeriod('week')"  data-i18n="period_week">Week</button>
-        <button class="period-btn" data-dash-period="month"  onclick="setDashPeriod('month')" data-i18n="period_month">Month</button>
-        <button class="period-btn" data-dash-period="year"   onclick="setDashPeriod('year')"  data-i18n="period_year">Year</button>
-      </div>
-
-      <!-- ✅ NEW: Cash in Hand as hero card -->
-      <div class="stat-grid stat-grid--dash">
-        <div class="stat-card stat-card--hero" id="dashCashCard" aria-label="Cash in hand">
-          <div class="stat-card__label" data-i18n="cash_in_hand">Cash in Hand</div>
-          <div class="stat-card__val" id="dashCashInHand">₹0</div>
-          <div class="stat-card__hint">Cash sales − expenses</div>
-        </div>
-        <div class="stat-card" aria-label="Net profit" id="dashProfitCard">
-          <div class="stat-card__label" data-i18n="net_profit">Net Profit</div>
-          <div class="stat-card__val" id="dashProfit">₹0</div>
-        </div>
-        <div class="stat-card" aria-label="Today's revenue">
-          <div class="stat-card__label" data-i18n="today_sales">Sales</div>
-          <div class="stat-card__val" id="dashRevenue">₹0</div>
-        </div>
-        <div class="stat-card stat-card--exp" aria-label="Today's expenses">
-          <div class="stat-card__label" data-i18n="today_expenses">Expenses</div>
-          <div class="stat-card__val" id="dashExpenses">₹0</div>
-        </div>
-        <div class="stat-card" aria-label="UPI received">
-          <div class="stat-card__label" data-i18n="upi_received">UPI</div>
-          <div class="stat-card__val" id="dashUpiReceived">₹0</div>
-        </div>
-        <div class="stat-card stat-card--credit" aria-label="Credit given">
-          <div class="stat-card__label" data-i18n="credit_given">Credit</div>
-          <div class="stat-card__val" id="dashCreditGiven">₹0</div>
-        </div>
-      </div>
-
-      <div class="dash-section">
-        <div class="dash-section-head">
-          <h3 class="dash-section-title">Recent Sales</h3>
-          <button class="link-btn" onclick="goTo('salesScreen')">See all →</button>
-        </div>
-        <div id="dashboardSalesPreview"></div>
-      </div>
-      <div class="dash-section">
-        <div class="dash-section-head">
-          <h3 class="dash-section-title">Recent Expenses</h3>
-          <button class="link-btn" onclick="goTo('expenseScreen')">See all →</button>
-        </div>
-        <div id="dashboardExpPreview"></div>
-      </div>
-
-      <!-- Quick action FABs -->
-      <div class="dash-fabs">
-        <button class="fab fab--secondary" onclick="openExpForm()" aria-label="Add expense"><i class="ti ti-receipt"></i></button>
-        <button class="fab fab--primary"   onclick="openSaleForm()" aria-label="New sale"><i class="ti ti-plus"></i></button>
-      </div>
-    </section>
-
-    <!-- ════════════════════════════════════════════════════════════════
-         SCREEN: QUICK SALE
-    ═══════════════════════════════════════════════════════════════════ -->
-    <section id="quickSaleScreen" class="screen" aria-label="Quick Sale" aria-hidden="true">
-      <div class="pg-head">
-        <h1 class="pg-title" data-i18n="quick_sale_title">Quick Sale</h1>
-        <div class="qs-counters">
-          <span class="qs-counter qs-counter--pending"><span id="qsPendingCount">0</span> pending</span>
-          <span class="qs-counter qs-counter--done"><span id="qsDoneCount">0</span> done</span>
-        </div>
-      </div>
-      <div id="quickSaleList"></div>
-      <!-- ✅ Prominent FAB instead of hidden button -->
-      <button id="qsMarkAllBtn" class="fab fab--primary fab--extended" onclick="markAllFixedDone()" style="display:none">
-        <i class="ti ti-checks"></i> Mark All Fixed Done
-      </button>
-    </section>
-
-    <!-- ════════════════════════════════════════════════════════════════
-         SCREEN: SALES
-    ═══════════════════════════════════════════════════════════════════ -->
-    <section id="salesScreen" class="screen" aria-label="Sales" aria-hidden="true">
-      <div class="pg-head">
-        <h1 class="pg-title" data-i18n="sales_title">Sales</h1>
-        <button class="btn btn--primary btn--sm" onclick="openSaleForm()"><i class="ti ti-plus"></i> New</button>
-      </div>
-      <div class="search-bar">
-        <i class="ti ti-search search-bar__icon"></i>
-        <input type="search" id="salesSearch" class="search-bar__input" placeholder="Search sales…"
-          oninput="searchSales(this.value)" aria-label="Search sales" data-i18n-placeholder="search_sales">
-      </div>
-      <div class="filter-sort-bar" role="group" aria-label="Filter and sort">
-        <div class="filter-pills">
-          <button class="filter-btn filter-btn--active" data-sales-filter="all"    onclick="setSalesFilter('all',this)">All</button>
-          <button class="filter-btn" data-sales-filter="cash"   onclick="setSalesFilter('cash',this)">💵 Cash</button>
-          <button class="filter-btn" data-sales-filter="upi"    onclick="setSalesFilter('upi',this)">📱 UPI</button>
-          <button class="filter-btn" data-sales-filter="credit" onclick="setSalesFilter('credit',this)">📒 Credit</button>
-        </div>
-        <select class="sort-select" onchange="setSalesSort(this.value)" aria-label="Sort by">
-          <option value="newest" data-sales-sort="newest">Newest</option>
-          <option value="amount" data-sales-sort="amount">Amount ↓</option>
-          <option value="name"   data-sales-sort="name">Name A–Z</option>
-        </select>
-      </div>
-      <div id="salesList" role="list"></div>
-    </section>
-
-    <!-- ════════════════════════════════════════════════════════════════
-         SCREEN: CUSTOMERS
-    ═══════════════════════════════════════════════════════════════════ -->
-    <section id="customerScreen" class="screen" aria-label="Customers" aria-hidden="true">
-      <div class="pg-head">
-        <h1 class="pg-title" data-i18n="customers_title">Customers</h1>
-        <button class="btn btn--primary btn--sm" onclick="openCustForm()"><i class="ti ti-user-plus"></i> Add</button>
-      </div>
-      <div class="search-bar">
-        <i class="ti ti-search search-bar__icon"></i>
-        <input type="search" id="custSearch" class="search-bar__input" placeholder="Search customers…"
-          oninput="searchCustomers(this.value)" aria-label="Search customers">
-      </div>
-      <div id="custList" role="list"></div>
-    </section>
-
-    <!-- ════════════════════════════════════════════════════════════════
-         SCREEN: CREDIT
-    ═══════════════════════════════════════════════════════════════════ -->
-    <section id="creditScreen" class="screen" aria-label="Credit Ledger" aria-hidden="true">
-      <div class="pg-head">
-        <h1 class="pg-title" data-i18n="credit_title">Credit (Khata)</h1>
-        <select class="sort-select" onchange="setState({creditSort:this.value});loadCredit()" aria-label="Sort credit">
-          <option value="balance">By Balance</option>
-          <option value="oldest">Oldest Payment</option>
-          <option value="name">By Name</option>
-        </select>
-      </div>
-      <div class="stat-grid stat-grid--credit">
-        <div class="stat-card stat-card--credit-given"><div class="stat-card__label">Given</div><div class="stat-card__val" id="creditTotalGiven">₹0</div></div>
-        <div class="stat-card stat-card--credit-paid"><div class="stat-card__label">Collected</div><div class="stat-card__val" id="creditTotalPaid">₹0</div></div>
-        <div class="stat-card stat-card--credit-bal"><div class="stat-card__label">Outstanding</div><div class="stat-card__val" id="creditTotalBalance">₹0</div></div>
-      </div>
-      <div id="creditList" role="list"></div>
-    </section>
-
-    <!-- ════════════════════════════════════════════════════════════════
-         SCREEN: EXPENSES
-    ═══════════════════════════════════════════════════════════════════ -->
-    <section id="expenseScreen" class="screen" aria-label="Expenses" aria-hidden="true">
-      <div class="pg-head">
-        <h1 class="pg-title" data-i18n="expenses_title">Expenses</h1>
-        <button class="btn btn--primary btn--sm" onclick="openExpForm()"><i class="ti ti-plus"></i> Add</button>
-      </div>
-      <div id="expenseList" role="list"></div>
-    </section>
-
-    <!-- ════════════════════════════════════════════════════════════════
-         SCREEN: WASTE
-    ═══════════════════════════════════════════════════════════════════ -->
-    <section id="wasteScreen" class="screen" aria-label="Waste" aria-hidden="true">
-      <div class="pg-head">
-        <h1 class="pg-title" data-i18n="waste_title">Waste</h1>
-        <button class="btn btn--primary btn--sm" onclick="openWasteForm()"><i class="ti ti-plus"></i> Add</button>
-      </div>
-      <div id="wasteList" role="list"></div>
-    </section>
-
-    <!-- ════════════════════════════════════════════════════════════════
-         SCREEN: REPORTS
-    ═══════════════════════════════════════════════════════════════════ -->
-    <section id="reportScreen" class="screen" aria-label="Reports" aria-hidden="true">
-      <div class="pg-head">
-        <h1 class="pg-title" data-i18n="reports_title">Reports</h1>
-        <div class="rpt-actions">
-          <button class="icon-btn" onclick="showExportSummary()" aria-label="Download PDF"><i class="ti ti-file-type-pdf"></i></button>
-          <button class="icon-btn" onclick="printReport()" aria-label="Print"><i class="ti ti-printer"></i></button>
-          <button class="icon-btn" onclick="shareReport()" aria-label="Share"><i class="ti ti-share"></i></button>
-        </div>
-      </div>
-      <!-- ✅ Smart tabs: auto-load current period on click -->
-      <div class="tab-bar" role="tablist">
-        <button class="tab-btn tab-btn--active" role="tab" data-report-tab="daily"   onclick="setReportTab('daily')"  aria-selected="true">Daily</button>
-        <button class="tab-btn" role="tab" data-report-tab="weekly"  onclick="setReportTab('weekly')"  aria-selected="false">Weekly</button>
-        <button class="tab-btn" role="tab" data-report-tab="monthly" onclick="setReportTab('monthly')" aria-selected="false">Monthly</button>
-        <button class="tab-btn" role="tab" data-report-tab="custom"  onclick="setReportTab('custom')"  aria-selected="false">Custom</button>
-      </div>
-      <div class="rpt-date-bar">
-        <span id="reportDateLabel" class="rpt-date-label"></span>
-        <button class="icon-btn" onclick="openDatePicker('',reportPickDate,{maxDate:''})" aria-label="Pick date"><i class="ti ti-calendar"></i></button>
-      </div>
-      <div id="rptNoData" class="empty-state" style="display:none">
-        <div class="empty-state__icon">📊</div><h3>No data for this period</h3>
-      </div>
-      <div class="stat-grid stat-grid--report">
-        <div class="stat-card"><div class="stat-card__label">Roti</div><div class="stat-card__val" id="rptRoti">0</div></div>
-        <div class="stat-card"><div class="stat-card__label">Revenue</div><div class="stat-card__val" id="rptRevenue">₹0</div></div>
-        <div class="stat-card" id="rptProfitCard"><div class="stat-card__label">Profit</div><div class="stat-card__val" id="rptProfit">₹0</div></div>
-        <div class="stat-card stat-card--exp"><div class="stat-card__label">Expenses</div><div class="stat-card__val" id="rptExpenses">₹0</div></div>
-        <div class="stat-card"><div class="stat-card__label">Cash</div><div class="stat-card__val" id="rptCash">₹0</div></div>
-        <div class="stat-card"><div class="stat-card__label">UPI</div><div class="stat-card__val" id="rptUpi">₹0</div></div>
-      </div>
-      <div class="chart-wrap"><canvas id="rptChart" height="180" aria-label="Revenue and expenses chart"></canvas></div>
-      <div class="rpt-section"><h3 class="rpt-section-title">Sales by Customer</h3><div id="rptSalesByCustomer"></div></div>
-      <div class="rpt-section"><h3 class="rpt-section-title">Expenses by Category</h3><div id="rptExpByCategory"></div></div>
-    </section>
-
-    <!-- ════════════════════════════════════════════════════════════════
-         SCREEN: ANALYTICS
-    ═══════════════════════════════════════════════════════════════════ -->
-    <section id="analyticsScreen" class="screen" aria-label="Analytics" aria-hidden="true">
-      <div class="pg-head">
-        <h1 class="pg-title" data-i18n="analytics_title">Analytics</h1>
-      </div>
-      <!-- ✅ Window toggle updates ALL sections -->
-      <div class="window-bar" role="group" aria-label="Time window">
-        <button class="window-btn" data-analytics-window="7"    onclick="setAnalyticsWindow(7,this)">7D</button>
-        <button class="window-btn window-btn--active" data-analytics-window="30" onclick="setAnalyticsWindow(30,this)">30D</button>
-        <button class="window-btn" data-analytics-window="90"   onclick="setAnalyticsWindow(90,this)">90D</button>
-        <button class="window-btn" data-analytics-window="9999" onclick="setAnalyticsWindow(9999,this)">All</button>
-      </div>
-      <div id="analyticsNoData" class="empty-state" style="display:none">
-        <div class="empty-state__icon">📊</div><h3>Not enough data yet (need 7+ days)</h3>
-      </div>
-      <!-- Per-Roti Hero Card -->
-      <div class="analytics-card">
-        <h3 class="analytics-card__title">💰 Per-Roti Economics</h3>
-        <div class="per-roti-grid">
-          <div class="per-roti-item"><span>Revenue/roti</span><strong id="arRevenuePerRoti">₹0</strong></div>
-          <div class="per-roti-item per-roti-item--cost"><span>Cost/roti</span><strong id="arCostPerRoti">₹0</strong></div>
-          <div class="per-roti-item per-roti-item--waste"><span>Waste cost</span><strong id="arWasteCostPerR">₹0</strong></div>
-          <div class="per-roti-item per-roti-item--profit"><span>Net profit</span><strong id="arProfitPerRoti">₹0</strong></div>
-          <div class="per-roti-item per-roti-item--margin"><span>Margin</span><strong id="arMargin">0%</strong></div>
-        </div>
-        <div id="arCostBreakdown"></div>
-      </div>
-      <div class="analytics-card">
-        <h3 class="analytics-card__title">📈 Revenue Trend</h3>
-        <div class="chart-wrap"><canvas id="revenueTrendChart" height="200" aria-label="Revenue trend chart"></canvas></div>
-        <p id="arForecastR2" class="chart-caption"></p>
-      </div>
-      <div class="analytics-card">
-        <h3 class="analytics-card__title">💹 Revenue vs Profit</h3>
-        <div class="chart-wrap"><canvas id="unitEconChart" height="180" aria-label="Revenue vs profit chart"></canvas></div>
-      </div>
-      <div class="analytics-card">
-        <h3 class="analytics-card__title">📦 Stock Tracker</h3>
-        <div id="stockTrackerContent"></div>
-      </div>
-      <div class="analytics-card">
-        <h3 class="analytics-card__title">👥 Top Customers</h3>
-        <div id="custInsightsContent"></div>
-      </div>
-      <div class="analytics-card">
-        <h3 class="analytics-card__title">💡 Smart Insights</h3>
-        <div id="smartInsightsContent"></div>
-      </div>
-    </section>
-
-    <!-- ════════════════════════════════════════════════════════════════
-         SCREEN: NOTEBOOK
-    ═══════════════════════════════════════════════════════════════════ -->
-    <section id="notebookScreen" class="screen" aria-label="Notebook" aria-hidden="true">
-      <div class="pg-head">
-        <h1 class="pg-title" data-i18n="notebook_title">Notebook <span id="noteCount" class="count-badge"></span></h1>
-        <button class="btn btn--primary btn--sm" onclick="openNoteForm()"><i class="ti ti-plus"></i> Note</button>
-      </div>
-      <div class="search-bar">
-        <i class="ti ti-search search-bar__icon"></i>
-        <input type="search" id="noteSearch" class="search-bar__input" placeholder="Search notes…" oninput="searchNotes(this.value)" aria-label="Search notes">
-        <button class="search-bar__clear" onclick="clearNoteSearch()" aria-label="Clear search">✕</button>
-      </div>
-      <div id="noteList" role="list"></div>
-    </section>
-
-    <!-- ════════════════════════════════════════════════════════════════
-         SCREEN: SETTINGS
-    ═══════════════════════════════════════════════════════════════════ -->
-    <section id="settingsScreen" class="screen" aria-label="Settings" aria-hidden="true">
-      <div class="pg-head">
-        <h1 class="pg-title" data-i18n="settings_title">Settings</h1>
-        <button class="icon-btn" onclick="signOutApp()" aria-label="Sign out"><i class="ti ti-logout"></i></button>
-      </div>
-      <div class="settings-body">
-
-        <div class="settings-section">
-          <h3 class="settings-section__title">Account</h3>
-          <div class="settings-item">
-            <div class="settings-item__info"><span id="settingsName">—</span><small id="settingsEmail"></small></div>
-          </div>
-          <div class="settings-item settings-item--clickable" onclick="openOverlay('bizNameOverlay')">
-            <div class="settings-item__info"><span>Business Name</span><small id="settingsBizName"></small></div>
-            <i class="ti ti-chevron-right settings-item__arrow"></i>
-          </div>
-          <div class="settings-item"><span>Sync Status</span><span id="settingsSyncStatus" class="settings-item__val"></span></div>
-        </div>
-
-        <div class="settings-section owner-only">
-          <h3 class="settings-section__title">Security</h3>
-          <div class="settings-item settings-item--clickable" onclick="openChangePinOverlay()">
-            <i class="ti ti-lock settings-item__icon"></i><span>Change PIN</span>
-            <i class="ti ti-chevron-right settings-item__arrow"></i>
-          </div>
-          <div class="settings-item settings-item--clickable" onclick="registerBiometric()">
-            <i class="ti ti-fingerprint settings-item__icon"></i><span>Enable Fingerprint Unlock</span>
-            <i class="ti ti-chevron-right settings-item__arrow"></i>
-          </div>
-        </div>
-
-        <div class="settings-section owner-only">
-          <h3 class="settings-section__title">Team</h3>
-          <div class="settings-item">
-            <input type="email" id="staffEmailInput" class="settings-input" placeholder="staff@email.com" aria-label="Staff email">
-            <button class="btn btn--sm btn--primary" onclick="addStaff()">Add</button>
-          </div>
-          <div id="teamList"></div>
-        </div>
-
-        <div class="settings-section">
-          <h3 class="settings-section__title">Preferences</h3>
-          <div class="settings-item">
-            <span>Theme</span>
-            <div class="btn-group" role="group">
-              <button class="theme-btn" data-theme-opt="dark"  onclick="setTheme('dark')">Dark</button>
-              <button class="theme-btn" data-theme-opt="light" onclick="setTheme('light')">Light</button>
-              <button class="theme-btn" data-theme-opt="auto"  onclick="setTheme('auto')">Auto</button>
+        <div class="login-card">
+            <h2>Welcome</h2>
+            <p>Sign in to manage your business</p>
+            <button class="google-btn" id="googleBtn" onclick="googleSignIn()" aria-label="Sign in with Google account">
+                <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/>
+                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                </svg>
+                <span>Sign in with Google</span>
+            </button>
+            <div class="login-features">
+                <div class="lf-item"><span aria-hidden="true">🔒</span> Secure</div>
+                <div class="lf-item"><span aria-hidden="true">☁️</span> Cloud Sync</div>
+                <div class="lf-item"><span aria-hidden="true">📱</span> Multi-device</div>
             </div>
-          </div>
-          <div class="settings-item">
-            <span>Language</span>
-            <div class="btn-group" role="group">
-              <button class="lang-btn" data-lang-opt="en" onclick="changeLang('en')">English</button>
-              <button class="lang-btn" data-lang-opt="hi" onclick="changeLang('hi')">हिंदी</button>
+        </div>
+        <p class="login-footer">Free forever • No ads • Your data is safe</p>
+    </div>
+</div>
+
+
+<!-- ======================================================
+     PIN SETUP SCREEN
+     ====================================================== -->
+<div id="pinSetupScreen" class="screen pin-screen" role="main" aria-label="Create PIN">
+    <div class="pin-bg" aria-hidden="true"><div class="pb1"></div><div class="pb2"></div><div class="pb3"></div></div>
+    <div class="pin-card">
+        <div class="pin-ic" aria-hidden="true">🔐</div>
+        <h2>Create Business PIN</h2>
+        <p>Set a 4-digit security PIN</p>
+        <div class="pin-dots" id="setupDots" role="status" aria-label="PIN digits entered">
+            <i></i><i></i><i></i><i></i>
+        </div>
+        <div class="pin-err" id="setupErr" role="alert" aria-live="polite"></div>
+        <div class="pin-pad" id="setupPad" role="group" aria-label="Number pad"></div>
+    </div>
+</div>
+
+
+<!-- ======================================================
+     PIN CONFIRM SCREEN
+     ====================================================== -->
+<div id="pinConfirmScreen" class="screen pin-screen" role="main" aria-label="Confirm PIN">
+    <div class="pin-bg" aria-hidden="true"><div class="pb1"></div><div class="pb2"></div><div class="pb3"></div></div>
+    <div class="pin-card">
+        <div class="pin-ic" aria-hidden="true">🛡️</div>
+        <h2>Confirm PIN</h2>
+        <p>Enter the same PIN again</p>
+        <div class="pin-dots" id="confirmDots" role="status" aria-label="PIN digits entered">
+            <i></i><i></i><i></i><i></i>
+        </div>
+        <div class="pin-err" id="confirmErr" role="alert" aria-live="polite"></div>
+        <div class="pin-pad" id="confirmPad" role="group" aria-label="Number pad"></div>
+    </div>
+</div>
+
+
+<!-- ======================================================
+     PIN LOGIN SCREEN
+     ====================================================== -->
+<div id="pinLoginScreen" class="screen pin-screen" role="main" aria-label="Enter PIN to unlock">
+    <div class="pin-bg" aria-hidden="true"><div class="pb1"></div><div class="pb2"></div><div class="pb3"></div></div>
+    <div class="pin-card">
+        <div class="pin-ic" aria-hidden="true">🫓</div>
+        <h2>Meri Dukaan</h2>
+        <p>Enter your PIN to continue</p>
+        <div class="pin-user" id="pinUserInfo" aria-label="Logged in user"></div>
+        <div class="pin-dots" id="loginDots" role="status" aria-label="PIN digits entered">
+            <i></i><i></i><i></i><i></i>
+        </div>
+        <div class="pin-err" id="loginErr" role="alert" aria-live="polite"></div>
+        <div class="pin-pad" id="loginPad" role="group" aria-label="Number pad"></div>
+        <button class="pin-switch" onclick="signOutAndLogin()" aria-label="Switch to different account">Switch Account</button>
+    </div>
+</div>
+
+
+<!-- ======================================================
+     DASHBOARD SCREEN
+     ====================================================== -->
+<div id="dashboardScreen" class="screen" role="main">
+    <div class="dash-hdr">
+        <div class="dh-bg" aria-hidden="true"></div>
+        <div class="dh-content">
+            <div class="dh-top">
+                <div>
+                    <p class="dh-greet" id="dashGreeting"></p>
+                    <h1 class="dh-title">Meri Dukaan</h1>
+                    <p class="dh-date" id="todayDate"></p>
+                </div>
+                <div class="dh-actions">
+                    <button class="dh-icon-btn" id="themeTogBtn" onclick="cycleTheme()" aria-label="Change theme">🌙</button>
+                    <button class="dh-icon-btn" onclick="goTo('settingScreen')" aria-label="Settings">⚙️</button>
+                    <button class="dh-icon-btn" onclick="lockApp()" aria-label="Lock app">🔒</button>
+                </div>
             </div>
-          </div>
-          <div class="settings-item">
-            <span>Week starts on</span>
-            <select id="settingsWeekStart" class="settings-select" onchange="saveWeekStart()">
-              <option value="1">Monday</option>
-              <option value="0">Sunday</option>
-            </select>
-          </div>
-          <div class="settings-item">
-            <span>Push Notifications</span>
-            <label class="toggle-switch">
-              <input type="checkbox" id="settingsNotifToggle" onchange="toggleNotifications(this.checked)" role="switch" aria-label="Enable push notifications">
-              <span class="toggle-switch__track"></span>
-            </label>
-          </div>
-        </div>
 
-        <div class="settings-section">
-          <h3 class="settings-section__title">Payments</h3>
-          <div class="settings-item">
-            <div class="settings-item__full">
-              <label class="settings-label" for="settingsUpiVpa">UPI VPA <small>(for payment links)</small></label>
-              <div class="settings-item__row">
-                <input type="text" id="settingsUpiVpa" class="settings-input" placeholder="yourname@upi" aria-label="UPI VPA">
-                <button class="btn btn--sm btn--primary" onclick="saveUpiVpa()">Save</button>
-              </div>
+            <!-- Period Toggle -->
+            <div class="period-tabs" role="tablist" aria-label="Time period filter">
+                <button class="pt active" role="tab" aria-selected="true" onclick="setPeriod('today',this)">Today</button>
+                <button class="pt" role="tab" aria-selected="false" onclick="setPeriod('week',this)">Week</button>
+                <button class="pt" role="tab" aria-selected="false" onclick="setPeriod('month',this)">Month</button>
+                <button class="pt" role="tab" aria-selected="false" onclick="setPeriod('year',this)">Year</button>
             </div>
-          </div>
-          <div class="settings-item">
-            <div class="settings-item__full">
-              <label class="settings-label" for="settingsSupplierPhone">Supplier Phone <small>(for stock order WhatsApp)</small></label>
-              <div class="settings-item__row">
-                <input type="tel" id="settingsSupplierPhone" class="settings-input" placeholder="9876543210" aria-label="Supplier phone">
-                <button class="btn btn--sm btn--primary" onclick="saveSupplierPhone()">Save</button>
-              </div>
+
+            <!-- Stats Grid -->
+            <div class="stat-grid">
+                <div class="stat-c" aria-label="Roti sold count">
+                    <div class="sc-ic sc1" aria-hidden="true">🫓</div>
+                    <div class="sc-info"><small>Roti Sold</small><strong id="dRoti">0</strong></div>
+                </div>
+                <div class="stat-c" aria-label="Total income">
+                    <div class="sc-ic sc2" aria-hidden="true">💰</div>
+                    <div class="sc-info"><small>Income</small><strong id="dIncome">₹0</strong></div>
+                </div>
+                <div class="stat-c" aria-label="Total expense">
+                    <div class="sc-ic sc3" aria-hidden="true">🛒</div>
+                    <div class="sc-info"><small>Expense</small><strong id="dExpense">₹0</strong></div>
+                </div>
+                <div class="stat-c" id="profitCard" aria-label="Net profit">
+                    <div class="sc-ic sc4" aria-hidden="true">📊</div>
+                    <div class="sc-info"><small>Profit</small><strong id="dProfit">₹0</strong></div>
+                </div>
             </div>
-          </div>
+
+            <!-- Credit & Waste Strip -->
+            <div class="dash-strip-row">
+                <div class="udh-strip" onclick="goTo('creditScreen')" role="button" tabindex="0" aria-label="View credit details">
+                    <span>💳 Credit Pending</span>
+                    <strong id="dCredit">₹0</strong>
+                </div>
+                <div class="waste-strip" onclick="goTo('wasteScreen')" role="button" tabindex="0" aria-label="View waste details">
+                    <span>🫓 Waste</span>
+                    <strong id="dWaste">0</strong>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="dash-body">
+        <!-- Quick Actions -->
+        <h3 class="sec-t">Quick Actions</h3>
+        <div class="act-grid">
+            <button class="act-btn" onclick="goTo('quickSaleScreen')" aria-label="Quick daily sale entry">
+                <div class="ab-i ab-quick" aria-hidden="true">⚡</div><span>Quick Sale</span>
+            </button>
+            <button class="act-btn" onclick="goTo('salesScreen')" aria-label="View and add sales">
+                <div class="ab-i ab1" aria-hidden="true">🫓</div><span>Sales</span>
+            </button>
+            <button class="act-btn" onclick="goTo('expenseScreen')" aria-label="View and add expenses">
+                <div class="ab-i ab2" aria-hidden="true">🛒</div><span>Expense</span>
+            </button>
+            <button class="act-btn" onclick="goTo('customerScreen')" aria-label="Manage customers">
+                <div class="ab-i ab3" aria-hidden="true">👥</div><span>Customers</span>
+            </button>
+            <button class="act-btn" onclick="goTo('creditScreen')" aria-label="View credit register">
+                <div class="ab-i ab4" aria-hidden="true">💳</div><span>Credit</span>
+            </button>
+            <button class="act-btn" onclick="goTo('wasteScreen')" aria-label="Track waste">
+                <div class="ab-i ab-waste" aria-hidden="true">🗑️</div><span>Waste</span>
+            </button>
+            <button class="act-btn" onclick="goTo('reportScreen')" aria-label="View reports and analytics">
+                <div class="ab-i ab5" aria-hidden="true">📊</div><span>Reports</span>
+            </button>
+            <button class="act-btn" onclick="goTo('analyticsScreen')" aria-label="Analytics and insights">
+                <div class="ab-i ab-analytics" aria-hidden="true">🔍</div><span>Analytics</span>
+            </button>
         </div>
 
-        <div class="settings-section">
-          <h3 class="settings-section__title">Data</h3>
-          <div class="settings-item settings-item--clickable" onclick="exportAllData()">
-            <i class="ti ti-download settings-item__icon"></i><span>Export All Data (JSON)</span>
-          </div>
-          <div class="settings-item settings-item--clickable" onclick="document.getElementById('importFileInput').click()">
-            <i class="ti ti-upload settings-item__icon"></i><span>Import Data</span>
-            <input type="file" id="importFileInput" accept=".json" style="display:none" onchange="importDataFile(event)">
-          </div>
+        <!-- Smart Insights — Phase 2+3 -->
+        <div id="dashInsights" style="display:none"></div>
+
+        <!-- Today's Activity -->
+        <h3 class="sec-t">Today's Activity</h3>
+        <div class="act-wrap">
+            <div class="aw-card">
+                <div class="aw-hdr">
+                    <span class="aw-dot green" aria-hidden="true"></span>
+                    <span class="aw-lbl">Recent Sales</span>
+                </div>
+                <div id="recentSales" aria-live="polite"><div class="no-data">No sales today</div></div>
+            </div>
+            <div class="aw-card">
+                <div class="aw-hdr">
+                    <span class="aw-dot red" aria-hidden="true"></span>
+                    <span class="aw-lbl">Recent Expenses</span>
+                </div>
+                <div id="recentExp" aria-live="polite"><div class="no-data">No expenses today</div></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<!-- ======================================================
+     QUICK SALE SCREEN
+     ====================================================== -->
+<div id="quickSaleScreen" class="screen" role="main">
+    <div class="pg-top">
+        <button class="pg-back" onclick="goTo('dashboardScreen')" aria-label="Go back to dashboard">‹</button>
+        <h2>⚡ Quick Daily Orders</h2>
+        <div></div>
+    </div>
+    <div class="quick-date"><span id="quickDateLabel"></span></div>
+    <div class="quick-summary">
+        <div class="qs-item"><strong id="qsDone">0</strong><small>Done</small></div>
+        <div class="sm-sep" aria-hidden="true"></div>
+        <div class="qs-item"><strong id="qsPending">0</strong><small>Pending</small></div>
+        <div class="sm-sep" aria-hidden="true"></div>
+        <div class="qs-item"><strong class="green" id="qsTotal">₹0</strong><small>Total</small></div>
+    </div>
+    <div class="quick-actions-bar">
+        <button class="qa-btn" onclick="markAllFixedDone()" aria-label="Mark all fixed daily orders as done">✅ Mark All Fixed as Done</button>
+    </div>
+    <div class="pg-body" id="quickSaleList" aria-live="polite"></div>
+</div>
+
+
+<!-- ======================================================
+     SALES SCREEN
+     ====================================================== -->
+<div id="salesScreen" class="screen" role="main">
+    <div class="pg-top">
+        <button class="pg-back" onclick="goTo('dashboardScreen')" aria-label="Go back">‹</button>
+        <h2>Sales</h2>
+        <button class="pg-act-sec" id="batchModeBtn" onclick="enterBatchMode()" aria-label="Select multiple">Select</button>
+        <button class="pg-act" onclick="openSaleForm()" aria-label="Add new sale">+ Add</button>
+    </div>
+    <div class="dt-nav">
+        <button class="dt-arr" onclick="changeSalesDate(-1)" aria-label="Previous day">‹</button>
+        <button class="dt-pick" id="salesDateBtn" onclick="openDatePicker('sales')" aria-label="Select date"></button>
+        <button class="dt-arr" onclick="changeSalesDate(1)" aria-label="Next day">›</button>
+    </div>
+    <input type="hidden" id="salesDate">
+
+    <!-- Search -->
+    <div class="search-wrap">
+        <input type="text" id="salesSearch" class="search-input" placeholder="🔍 Search customer..." oninput="filterSales(this.value)" autocomplete="off">
+    </div>
+
+    <div class="sum-bar">
+        <div class="sm-i"><strong id="sRoti">0</strong><small>Roti</small></div>
+        <div class="sm-sep" aria-hidden="true"></div>
+        <div class="sm-i"><strong class="green" id="sIncome">₹0</strong><small>Income</small></div>
+        <div class="sm-sep" aria-hidden="true"></div>
+        <div class="sm-i"><strong id="sCash">₹0</strong><small>Cash+UPI</small></div>
+        <div class="sm-sep" aria-hidden="true"></div>
+        <div class="sm-i"><strong class="amber" id="sCredit">₹0</strong><small>Credit</small></div>
+    </div>
+    <!-- Phase 3: Batch Select Toolbar -->
+    <div id="batchToolbar" class="batch-toolbar" aria-live="polite">
+        <span id="batchCount" class="batch-count">0 selected</span>
+        <button class="batch-sel-all" onclick="selectAllSales()">Select All</button>
+        <button id="batchDeleteBtn" class="batch-del-btn" onclick="batchDeleteSelected()" disabled aria-label="Delete selected sales">🗑️ Delete</button>
+    </div>
+    <!-- Phase 3: Batch button in page top area (added via JS or via fixed position) -->
+    <div class="pg-body" id="salesList" aria-live="polite"></div>
+</div>
+
+
+<!-- ======================================================
+     EXPENSE SCREEN
+     ====================================================== -->
+<div id="expenseScreen" class="screen" role="main">
+    <div class="pg-top">
+        <button class="pg-back" onclick="goTo('dashboardScreen')" aria-label="Go back">‹</button>
+        <h2>Expenses</h2>
+        <button class="pg-act" onclick="openExpenseForm()" aria-label="Add new expense">+ Add</button>
+    </div>
+    <div class="dt-nav">
+        <button class="dt-arr" onclick="changeExpDate(-1)" aria-label="Previous day">‹</button>
+        <button class="dt-pick" id="expDateBtn" onclick="openDatePicker('expense')" aria-label="Select date"></button>
+        <button class="dt-arr" onclick="changeExpDate(1)" aria-label="Next day">›</button>
+    </div>
+    <input type="hidden" id="expDate">
+    <div class="sum-bar">
+        <div class="sm-i"><strong class="red" id="eTotal">₹0</strong><small>Total Expense</small></div>
+        <div class="sm-sep" aria-hidden="true"></div>
+        <div class="sm-i"><strong id="eCount">0</strong><small>Items</small></div>
+    </div>
+    <div class="pg-body" id="expList" aria-live="polite"></div>
+</div>
+
+
+<!-- ======================================================
+     WASTE SCREEN
+     ====================================================== -->
+<div id="wasteScreen" class="screen" role="main">
+    <div class="pg-top">
+        <button class="pg-back" onclick="goTo('dashboardScreen')" aria-label="Go back">‹</button>
+        <h2>Waste Tracking</h2>
+        <button class="pg-act" onclick="openWasteForm()" aria-label="Add waste entry">+ Add</button>
+    </div>
+    <div class="dt-nav">
+        <button class="dt-arr" onclick="changeWasteDate(-1)" aria-label="Previous day">‹</button>
+        <button class="dt-pick" id="wasteDateBtn" onclick="openDatePicker('waste')" aria-label="Select date"></button>
+        <button class="dt-arr" onclick="changeWasteDate(1)" aria-label="Next day">›</button>
+    </div>
+    <input type="hidden" id="wasteDate">
+    <div class="waste-hero">
+        <div class="wh-item"><strong id="wQty">0</strong><small>Roti Wasted</small></div>
+        <div class="sm-sep" style="background:rgba(255,255,255,.2)" aria-hidden="true"></div>
+        <div class="wh-item"><strong id="wCost">₹0</strong><small>Estimated Loss</small></div>
+    </div>
+    <div class="pg-body" id="wasteList" aria-live="polite"></div>
+</div>
+
+
+<!-- ======================================================
+     CUSTOMERS SCREEN
+     ====================================================== -->
+<div id="customerScreen" class="screen" role="main">
+    <div class="pg-top">
+        <button class="pg-back" onclick="goTo('dashboardScreen')" aria-label="Go back">‹</button>
+        <h2>Customers</h2>
+        <button class="pg-act" onclick="openCustomerForm()" aria-label="Add new customer">+ Add</button>
+    </div>
+    <div class="pg-sub" id="custCount">0 Customers</div>
+    <div class="pg-body" id="customerList" aria-live="polite"></div>
+</div>
+
+
+<!-- ======================================================
+     CREDIT / UDHARI SCREEN
+     ====================================================== -->
+<div id="creditScreen" class="screen" role="main">
+    <div class="pg-top">
+        <button class="pg-back" onclick="goTo('dashboardScreen')" aria-label="Go back">‹</button>
+        <h2>Credit Register</h2>
+        <div></div>
+    </div>
+    <div class="udh-hero">
+        <div class="udh-hero-row">
+            <div class="udh-stat">
+                <p>Pending</p>
+                <h2 id="cTotalPending">₹0</h2>
+            </div>
+            <div class="udh-sep" id="cAdvanceSep" style="display:none"></div>
+            <div class="udh-stat advance" id="cAdvanceSection" style="display:none">
+                <p>Advance</p>
+                <h2 id="cTotalAdvance">₹0</h2>
+            </div>
+        </div>
+    </div>
+    <div class="pg-body" id="creditList" aria-live="polite"></div>
+</div>
+
+
+<!-- ======================================================
+     REPORTS SCREEN
+     ====================================================== -->
+<div id="reportScreen" class="screen" role="main">
+    <div class="pg-top">
+        <button class="pg-back" onclick="goTo('dashboardScreen')" aria-label="Go back">‹</button>
+        <h2>Reports</h2>
+        <div></div>
+    </div>
+    <div class="rp-tabs" role="tablist" aria-label="Report type">
+        <button class="rp-t active" role="tab" aria-selected="true" onclick="switchReport('daily',this)">Daily</button>
+        <button class="rp-t" role="tab" aria-selected="false" onclick="switchReport('weekly',this)">Weekly</button>
+        <button class="rp-t" role="tab" aria-selected="false" onclick="switchReport('monthly',this)">Monthly</button>
+    </div>
+    <div class="dt-nav">
+        <button class="dt-arr" onclick="changeReportDate(-1)" aria-label="Previous period">‹</button>
+        <button class="dt-pick" id="reportDateBtn" onclick="openDatePicker('report')" aria-label="Select date"></button>
+        <button class="dt-arr" onclick="changeReportDate(1)" aria-label="Next period">›</button>
+    </div>
+    <!-- ★ FIX: Missing hidden input that caused crash -->
+    <input type="hidden" id="reportDate">
+
+    <!-- Charts -->
+    <div class="chart-section" id="chartSection">
+        <div class="chart-card" id="salesChartCard">
+            <h4 class="chart-title">📊 Sales Overview</h4>
+            <div class="chart-wrap"><canvas id="salesChart"></canvas></div>
+        </div>
+        <div class="chart-card" id="expenseChartCard">
+            <h4 class="chart-title">🥧 Expense Breakdown</h4>
+            <div class="chart-wrap chart-sm"><canvas id="expenseChart"></canvas></div>
+        </div>
+    </div>
+
+    <div id="reportContent" class="pg-body rp-body" aria-live="polite"></div>
+    <div class="pdf-wrap">
+        <button class="pdf-btn" onclick="generatePDF()" aria-label="Download PDF report">📄 Download PDF Report</button>
+    </div>
+</div>
+<!-- ======================================================
+     SETTINGS SCREEN
+     ====================================================== -->
+<div id="settingScreen" class="screen" role="main">
+    <div class="pg-top">
+        <button class="pg-back" onclick="goTo('dashboardScreen')" aria-label="Go back">‹</button>
+        <h2>Settings</h2>
+        <div></div>
+    </div>
+    <div class="set-list">
+        <!-- User Info Card -->
+        <div class="set-user" id="setUserInfo">
+            <img class="su-avatar" id="suAvatar" src="" alt="User avatar" onerror="this.style.display='none'">
+            <div class="su-info">
+                <h4 id="suName">User</h4>
+                <p id="suEmail">email@gmail.com</p>
+            </div>
+            <span class="su-role" id="suRole">Owner</span>
         </div>
 
-        <div class="settings-section">
-          <h3 class="settings-section__title">About</h3>
-          <div class="settings-item"><span>Version</span><span class="settings-item__val">Meri Dukaan v8.0</span></div>
-          <div class="settings-item"><span>Free forever</span><span class="settings-item__val">✅</span></div>
+        <!-- Appearance -->
+        <div class="set-sec-title">🎨 Appearance</div>
+        <div class="set-i" onclick="cycleTheme()" role="button" tabindex="0" aria-label="Change app theme">
+            <div class="si-ic si-purple" id="setThemeIc">🌙</div>
+            <div class="si-tx">
+                <h4>Theme</h4>
+                <p id="setThemeLabel">System Default</p>
+            </div>
+            <span class="theme-badge" id="setThemeBadge">Auto</span>
         </div>
 
-        <div class="settings-section settings-section--danger owner-only">
-          <h3 class="settings-section__title">Danger Zone</h3>
-          <div class="settings-item settings-item--clickable" onclick="signOutApp()">
-            <i class="ti ti-logout settings-item__icon"></i><span class="text-danger">Sign Out</span>
-          </div>
+        <!-- Team -->
+        <div class="set-sec-title">👥 Team Members</div>
+        <div class="set-i" onclick="openTeamManager()" role="button" tabindex="0" aria-label="Manage team members">
+            <div class="si-ic si-blue">👥</div>
+            <div class="si-tx">
+                <h4>Manage Team</h4>
+                <p>Add family members for multi-device</p>
+            </div>
+            <span class="si-go" aria-hidden="true">›</span>
         </div>
 
-      </div>
-    </section>
-
-    <!-- ════════════════════════════════════════════════════════════════
-         BOTTOM NAVIGATION (SVG Tabler Icons — consistent across OEMs)
-    ═══════════════════════════════════════════════════════════════════ -->
-    <nav id="bottomNav" class="bottom-nav" role="navigation" aria-label="Main navigation">
-      <button class="nav-btn" data-nav-screen="dashboardScreen"  onclick="goTo('dashboardScreen')"  aria-label="Home">
-        <i class="ti ti-home nav-btn__icon"></i><span class="nav-btn__label">Home</span>
-      </button>
-      <button class="nav-btn" data-nav-screen="quickSaleScreen"  onclick="goTo('quickSaleScreen')"  aria-label="Quick Sale">
-        <i class="ti ti-bolt nav-btn__icon"></i><span class="nav-btn__label">Quick</span>
-      </button>
-      <button class="nav-btn" data-nav-screen="salesScreen"      onclick="goTo('salesScreen')"      aria-label="Sales">
-        <i class="ti ti-receipt nav-btn__icon"></i><span class="nav-btn__label">Sales</span>
-      </button>
-      <button class="nav-btn" data-nav-screen="customerScreen"   onclick="goTo('customerScreen')"   aria-label="Customers">
-        <i class="ti ti-users nav-btn__icon"></i><span class="nav-btn__label">Customers</span>
-      </button>
-      <button class="nav-btn" data-nav-screen="creditScreen"     onclick="goTo('creditScreen')"     aria-label="Credit">
-        <i class="ti ti-book nav-btn__icon"></i><span class="nav-btn__label">Credit</span>
-      </button>
-      <button class="nav-btn" data-nav-screen="expenseScreen"    onclick="goTo('expenseScreen')"    aria-label="Expenses">
-        <i class="ti ti-shopping-bag nav-btn__icon"></i><span class="nav-btn__label">Expenses</span>
-      </button>
-      <button class="nav-btn" data-nav-screen="reportScreen"     onclick="goTo('reportScreen')"     aria-label="Reports">
-        <i class="ti ti-chart-bar nav-btn__icon"></i><span class="nav-btn__label">Reports</span>
-      </button>
-      <button class="nav-btn" data-nav-screen="analyticsScreen"  onclick="goTo('analyticsScreen')"  aria-label="Analytics">
-        <i class="ti ti-trending-up nav-btn__icon"></i><span class="nav-btn__label">Analytics</span>
-      </button>
-      <button class="nav-btn" data-nav-screen="notebookScreen"   onclick="goTo('notebookScreen')"   aria-label="Notebook">
-        <i class="ti ti-notebook nav-btn__icon"></i><span class="nav-btn__label">Notes</span>
-      </button>
-      <button class="nav-btn" data-nav-screen="wasteScreen"      onclick="goTo('wasteScreen')"      aria-label="Waste">
-        <i class="ti ti-trash nav-btn__icon"></i><span class="nav-btn__label">Waste</span>
-      </button>
-    </nav>
-
-    <!-- ════════════════════════════════════════════════════════════════
-         OVERLAYS
-    ═══════════════════════════════════════════════════════════════════ -->
-
-    <!-- Sale Form -->
-    <div id="saleFormOverlay" class="overlay" role="dialog" aria-modal="true" aria-label="Sale form" aria-hidden="true">
-      <div class="overlay-sheet sheet">
-        <div class="sheet-handle" aria-hidden="true"></div>
-        <div class="sheet-head">
-          <h2 class="sheet-title" id="sfTitle">New Sale</h2>
-          <button class="sheet-close" onclick="closeSaleForm()" aria-label="Close">✕</button>
+        <!-- Cloud Sync -->
+        <div class="set-sec-title">☁️ Data & Sync</div>
+        <div class="set-i" aria-label="Cloud sync status">
+            <div class="si-ic si-green">☁️</div>
+            <div class="si-tx">
+                <h4>Cloud Sync</h4>
+                <p id="syncStatus">Connected • Real-time active</p>
+            </div>
+            <span class="sync-dot online" id="syncDot" aria-label="Connection status"></span>
         </div>
+        <div class="set-i" onclick="exportData()" role="button" tabindex="0" aria-label="Download data backup">
+            <div class="si-ic si-green">💾</div>
+            <div class="si-tx">
+                <h4>Download Backup</h4>
+                <p>Save data as JSON file</p>
+            </div>
+            <span class="si-go" aria-hidden="true">›</span>
+        </div>
+        <div class="set-i" onclick="document.getElementById('importFile').click()" role="button" tabindex="0" aria-label="Import data from backup">
+            <div class="si-ic si-purple">📥</div>
+            <div class="si-tx">
+                <h4>Import Old Data</h4>
+                <p>Import from v3 backup file</p>
+            </div>
+            <span class="si-go" aria-hidden="true">›</span>
+        </div>
+        <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(event)" aria-hidden="true">
+
+        <!-- Security -->
+        <div class="set-sec-title">🔐 Security</div>
+        <div class="set-i" onclick="showChangePinUI()" role="button" tabindex="0" aria-label="Change security PIN">
+            <div class="si-ic si-blue">🔐</div>
+            <div class="si-tx">
+                <h4>Change PIN</h4>
+                <p>Update security PIN</p>
+            </div>
+            <span class="si-go" aria-hidden="true">›</span>
+        </div>
+
+        <!-- App Info -->
+        <div class="set-sec-title">ℹ️ About</div>
+        <div class="set-i" id="swVersionCard" aria-label="App version info">
+            <div class="si-ic si-green">📱</div>
+            <div class="si-tx">
+                <h4>App Version</h4>
+                <p id="appVersionText">v7.0 • PWA</p>
+            </div>
+            <span class="si-go" aria-hidden="true" id="updateBadge" style="display:none">🔄</span>
+        </div>
+
+        <!-- Danger Zone -->
+        <div class="set-sec-title">⚠️ Danger Zone</div>
+        <div class="set-i danger" onclick="resetAllData()" role="button" tabindex="0" aria-label="Delete all data permanently">
+            <div class="si-ic si-red">🗑️</div>
+            <div class="si-tx">
+                <h4>Delete All Data</h4>
+                <p>Permanently remove all data</p>
+            </div>
+            <span class="si-go" aria-hidden="true">›</span>
+        </div>
+        <div class="set-i danger" onclick="signOutApp()" role="button" tabindex="0" aria-label="Sign out from app">
+            <div class="si-ic si-red">🚪</div>
+            <div class="si-tx">
+                <h4>Sign Out</h4>
+                <p>Log out from this device</p>
+            </div>
+            <span class="si-go" aria-hidden="true">›</span>
+        </div>
+
+        <div class="app-foot">
+            <p>🫓 Meri Dukaan v7.0</p>
+            <p>Cloud-powered Business Management</p>
+            <p class="app-foot-sub">Made with ❤️ for small businesses</p>
+        </div>
+    </div>
+</div>
+
+
+<!-- ======================================================
+     OVERLAY: CUSTOMER FORM
+     ====================================================== -->
+<div id="customerFormOverlay" class="overlay" role="dialog" aria-labelledby="cfTitle" aria-modal="true">
+    <div class="pg-top">
+        <button class="pg-back" onclick="closeOverlay('customerFormOverlay')" aria-label="Close form">‹</button>
+        <h2 id="cfTitle">New Customer</h2>
+        <div></div>
+    </div>
+    <div class="frm-body">
+        <form id="customerForm" onsubmit="saveCustomer(event)" novalidate>
+            <input type="hidden" id="cfId">
+
+            <div class="fg">
+                <label for="cfName">Customer Name *</label>
+                <input type="text" id="cfName" required placeholder="e.g. Sharma Ji" autocomplete="off" maxlength="100">
+            </div>
+
+            <div class="fg">
+                <label for="cfRate">Rate Per Roti (₹) *</label>
+                <input type="number" id="cfRate" required placeholder="e.g. 5" step="0.5" min="0.5" max="1000" inputmode="decimal">
+            </div>
+
+            <div class="fg">
+                <label for="cfPhone">Phone Number</label>
+                <input type="tel" id="cfPhone" placeholder="Optional" inputmode="tel" maxlength="15" pattern="[0-9+\-\s]*">
+            </div>
+
+            <div class="fg">
+                <label>Order Type *</label>
+                <div class="tgl-row">
+                    <button type="button" class="tgl active" onclick="setOrderType('fixed',this)" aria-pressed="true">📋 Fixed Daily</button>
+                    <button type="button" class="tgl" onclick="setOrderType('variable',this)" aria-pressed="false">🔄 Variable</button>
+                </div>
+                <input type="hidden" id="cfOrderType" value="fixed">
+            </div>
+
+            <div class="fg" id="fixedQtyGroup">
+                <label for="cfQty">Daily Roti Count *</label>
+                <input type="number" id="cfQty" placeholder="e.g. 80" min="1" max="10000" inputmode="numeric">
+            </div>
+
+            <button type="submit" class="pri-btn" id="cfSubmitBtn">💾 Save Customer</button>
+        </form>
+    </div>
+</div>
+
+
+<!-- ======================================================
+     OVERLAY: SALE FORM
+     ====================================================== -->
+<div id="saleFormOverlay" class="overlay" role="dialog" aria-labelledby="sfTitle" aria-modal="true">
+    <div class="pg-top">
+        <button class="pg-back" onclick="closeOverlay('saleFormOverlay')" aria-label="Close form">‹</button>
+        <h2 id="sfTitle">New Sale</h2>
+        <div></div>
+    </div>
+    <div class="frm-body">
+        <!-- Duplicate Sale Warning Banner -->
+        <div class="dup-warn" id="sfDupWarn" style="display:none" role="alert">
+            ⚠️ <span id="sfDupText">This customer already has a sale today</span>
+        </div>
+        <!-- Phase 3: Advance credit notice -->
+        <div class="adv-notice" id="sfAdvanceBanner" style="display:none" role="status"></div>
+
         <form id="saleForm" onsubmit="saveSale(event)" novalidate>
-          <input type="hidden" id="sfId">
-          <div class="form-group">
-            <label class="form-label">Customer <span aria-hidden="true">*</span></label>
-            <button type="button" class="cust-picker-trigger" id="sfCustDisplay" onclick="openOverlay('custPickerOverlay')" aria-haspopup="dialog">Select Customer</button>
-          </div>
-          <div class="form-group">
-            <label class="form-label" for="sfDate">Date</label>
-            <input type="date" id="sfDate" class="form-input" required>
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label class="form-label" for="sfQty">Qty (roti) <span aria-hidden="true">*</span></label>
-              <input type="number" id="sfQty" class="form-input" min="1" max="9999" step="1" oninput="calcSaleTotal()" required aria-required="true">
+            <input type="hidden" id="sfId">
+            <input type="hidden" id="sfCustomerId">
+            <input type="hidden" id="sfCustomerName">
+
+            <!-- Customer Type Toggle -->
+            <div class="fg">
+                <label>Customer Type</label>
+                <div class="tgl-row">
+                    <button type="button" class="tgl active" onclick="setSaleType('regular',this)" aria-pressed="true">👤 Regular</button>
+                    <button type="button" class="tgl" onclick="setSaleType('walkin',this)" aria-pressed="false">🚶 Walk-in</button>
+                </div>
+                <input type="hidden" id="sfType" value="regular">
             </div>
-            <div class="form-group">
-              <label class="form-label" for="sfRate">Rate (₹/roti) <span aria-hidden="true">*</span></label>
-              <input type="number" id="sfRate" class="form-input" min="0.5" max="500" step="0.5" oninput="calcSaleTotal()" required aria-required="true">
+
+            <!-- Regular: Customer Picker -->
+            <div class="fg" id="sfCustGroup">
+                <label>Customer *</label>
+                <button type="button" class="picker-btn" id="sfCustBtn" onclick="openCustPicker('sale')" aria-label="Select customer">
+                    <span id="sfCustLabel">-- Select Customer --</span>
+                    <span class="pk-arrow" aria-hidden="true">›</span>
+                </button>
             </div>
-          </div>
-          <div class="sale-total-display" aria-live="polite">Total: <strong id="sfTotal">₹0</strong></div>
-          <div class="form-group">
-            <label class="form-label" for="sfPay">Payment Type</label>
-            <div class="pay-type-group" role="group" aria-label="Payment type">
-              <label class="pay-type-opt"><input type="radio" name="sfPay" id="sfPay" value="cash" checked> <span>💵 Cash</span></label>
-              <label class="pay-type-opt"><input type="radio" name="sfPay" value="upi">   <span>📱 UPI</span></label>
-              <label class="pay-type-opt"><input type="radio" name="sfPay" value="credit"><span>📒 Credit</span></label>
+
+            <!-- Walk-in: Name Input -->
+            <div class="fg" id="sfWalkinGroup" style="display:none">
+                <label for="sfWalkinName">Name (Optional)</label>
+                <input type="text" id="sfWalkinName" placeholder="e.g. Counter Customer" autocomplete="off" maxlength="100">
             </div>
-          </div>
-          <!-- ✅ UPI deep-link button -->
-          <button type="button" id="sfUpiBtn" class="btn btn--upi" onclick="openUpiCollect()" style="display:none" aria-label="Open UPI payment">
-            Collect via UPI 📲
-          </button>
-          <button type="submit" id="sfSubmitBtn" class="btn btn--primary btn--full">Save Sale</button>
+
+            <!-- Rate and Quantity -->
+            <div class="fg-row">
+                <div class="fg">
+                    <label for="sfRate">Rate (₹)</label>
+                    <input type="number" id="sfRate" step="0.5" min="0.5" max="1000" inputmode="decimal" oninput="calcSaleTotal()">
+                </div>
+                <div class="fg">
+                    <label for="sfQty">Quantity *</label>
+                    <input type="number" id="sfQty" required min="1" max="50000" inputmode="numeric" oninput="calcSaleTotal()" placeholder="Roti count">
+                </div>
+            </div>
+
+            <!-- Total Display -->
+            <div class="total-box">
+                <span>Total Amount</span>
+                <span class="tb-val" id="sfTotal">₹0</span>
+            </div>
+
+            <!-- Payment Method -->
+            <div class="fg">
+                <label>Payment Method *</label>
+                <div class="tgl-row tgl3">
+                    <button type="button" class="tgl active" onclick="setPayType('sfPay','cash',this)" aria-pressed="true">💵 Cash</button>
+                    <button type="button" class="tgl" onclick="setPayType('sfPay','upi',this)" aria-pressed="false">📱 UPI</button>
+                    <button type="button" class="tgl" onclick="setPayType('sfPay','credit',this)" aria-pressed="false">💳 Credit</button>
+                </div>
+                <input type="hidden" id="sfPay" value="cash">
+            </div>
+
+            <button type="submit" class="pri-btn" id="sfSubmitBtn">💾 Save Sale</button>
         </form>
-      </div>
     </div>
+</div>
 
-    <!-- Customer Picker -->
-    <div id="custPickerOverlay" class="overlay" role="dialog" aria-modal="true" aria-label="Select customer" aria-hidden="true">
-      <div class="overlay-sheet sheet">
-        <div class="sheet-handle" aria-hidden="true"></div>
-        <div class="sheet-head"><h2 class="sheet-title">Select Customer</h2><button class="sheet-close" onclick="closeOverlay('custPickerOverlay')">✕</button></div>
-        <div class="search-bar"><i class="ti ti-search search-bar__icon"></i><input type="search" class="search-bar__input" placeholder="Search…" oninput="filterCustPicker(this.value)" aria-label="Search customers"></div>
-        <div id="custPickerList" role="listbox"></div>
-      </div>
+
+<!-- ======================================================
+     OVERLAY: EXPENSE FORM
+     ====================================================== -->
+<div id="expFormOverlay" class="overlay" role="dialog" aria-labelledby="efTitle" aria-modal="true">
+    <div class="pg-top">
+        <button class="pg-back" onclick="closeOverlay('expFormOverlay')" aria-label="Close form">‹</button>
+        <h2 id="efTitle">New Expense</h2>
+        <div></div>
     </div>
+    <div class="frm-body">
+        <form id="expForm" onsubmit="saveExpense(event)" novalidate>
+            <input type="hidden" id="efId">
 
-    <!-- Customer Form -->
-    <div id="custFormOverlay" class="overlay" role="dialog" aria-modal="true" aria-label="Customer form" aria-hidden="true">
-      <div class="overlay-sheet sheet">
-        <div class="sheet-handle" aria-hidden="true"></div>
-        <div class="sheet-head">
-          <h2 class="sheet-title" id="cfFormTitle">Add Customer</h2>
-          <button class="sheet-close" onclick="closeCustForm()">✕</button>
-        </div>
-        <form id="custForm" onsubmit="saveCustomer(event)" novalidate>
-          <input type="hidden" id="cfId">
-          <div class="form-group">
-            <label class="form-label" for="cfName">Customer Name *</label>
-            <input type="text" id="cfName" class="form-input" maxlength="100" required aria-required="true" autocomplete="name">
-          </div>
-          <div class="form-group">
-            <label class="form-label" for="cfPhone">Phone (WhatsApp)</label>
-            <input type="tel" id="cfPhone" class="form-input" maxlength="10" pattern="[0-9]{10}" autocomplete="tel">
-          </div>
-          <div class="form-group">
-            <label class="form-label" for="cfAddr">Address</label>
-            <input type="text" id="cfAddr" class="form-input" maxlength="200" autocomplete="street-address">
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label class="form-label" for="cfType">Order Type</label>
-              <select id="cfType" class="form-input" onchange="setCustOrderType(this.value)">
-                <option value="fixed">Fixed</option>
-                <option value="variable">Variable</option>
-              </select>
+            <!-- Category Selection -->
+            <div class="fg">
+                <label>Category *</label>
+                <div class="cat-row">
+                    <button type="button" class="cat active" onclick="setExpCat('atta',this)">🌾 Atta</button>
+                    <button type="button" class="cat" onclick="setExpCat('oil',this)">🛢️ Oil</button>
+                    <button type="button" class="cat" onclick="setExpCat('gas',this)">🔥 Gas</button>
+                    <button type="button" class="cat" onclick="setExpCat('poly',this)">🛍️ Poly</button>
+                    <button type="button" class="cat" onclick="setExpCat('other',this)">📦 Other</button>
+                </div>
+                <input type="hidden" id="efCat" value="atta">
             </div>
-            <div class="form-group">
-              <label class="form-label" for="cfRate">Rate (₹/roti) *</label>
-              <input type="number" id="cfRate" class="form-input" min="1" max="500" step="0.5" required aria-required="true">
+
+            <!-- Other: Description -->
+            <div class="fg" id="efDetailGrp" style="display:none">
+                <label for="efDetail">Description</label>
+                <input type="text" id="efDetail" placeholder="What was the expense" maxlength="200" autocomplete="off">
             </div>
-          </div>
-          <div class="form-group" id="cfFixedGroup" style="display:none">
-            <label class="form-label" for="cfQty">Fixed Qty/day *</label>
-            <input type="number" id="cfQty" class="form-input" min="1" max="9999" step="1">
-          </div>
-          <div class="form-group">
-            <label class="form-label" for="cfStatus">Status</label>
-            <select id="cfStatus" class="form-input">
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-              <option value="seasonal">Seasonal</option>
-            </select>
-          </div>
-          <button type="submit" id="cfSubmitBtn" class="btn btn--primary btn--full">Save Customer</button>
+
+            <!-- Weight (for Atta/Oil) -->
+            <div class="fg" id="efWeightGrp">
+                <label for="efWeight">Weight (KG)</label>
+                <input type="number" id="efWeight" placeholder="e.g. 50" min="0.1" max="99999" step="0.1" inputmode="decimal" oninput="updateExpComparison()">
+            </div>
+
+            <!-- Amount -->
+            <div class="fg">
+                <label for="efAmount">Amount (₹) *</label>
+                <input type="number" id="efAmount" required placeholder="Amount in rupees" min="1" max="9999999" inputmode="numeric" oninput="updateExpComparison()">
+            </div>
+
+            <!-- Live Rate Comparison Box -->
+            <div id="efRateInfo" class="rate-box" style="display:none" role="status" aria-live="polite"></div>
+
+            <!-- Payment Method -->
+            <div class="fg">
+                <label>Payment Method</label>
+                <div class="tgl-row">
+                    <button type="button" class="tgl active" onclick="setPayType('efPay','cash',this)" aria-pressed="true">💵 Cash</button>
+                    <button type="button" class="tgl" onclick="setPayType('efPay','upi',this)" aria-pressed="false">📱 UPI</button>
+                </div>
+                <input type="hidden" id="efPay" value="cash">
+            </div>
+
+            <button type="submit" class="pri-btn" id="efSubmitBtn">💾 Save Expense</button>
         </form>
-      </div>
     </div>
+</div>
 
-    <!-- Customer Profile -->
-    <div id="customerProfileOverlay" class="overlay" role="dialog" aria-modal="true" aria-label="Customer profile" aria-hidden="true">
-      <div class="overlay-sheet sheet">
-        <div class="sheet-handle" aria-hidden="true"></div>
-        <div class="sheet-head"><h2 class="sheet-title">Customer Profile</h2><button class="sheet-close" onclick="closeOverlay('customerProfileOverlay')">✕</button></div>
-        <div id="customerProfileContent"></div>
-      </div>
+
+<!-- ======================================================
+     OVERLAY: WASTE FORM
+     ====================================================== -->
+<div id="wasteFormOverlay" class="overlay" role="dialog" aria-labelledby="wfFormTitle" aria-modal="true">
+    <div class="pg-top">
+        <button class="pg-back" onclick="closeOverlay('wasteFormOverlay')" aria-label="Close form">‹</button>
+        <h2 id="wfFormTitle">Add Waste Entry</h2>
+        <div></div>
     </div>
-
-    <!-- Credit Payment -->
-    <div id="creditPaymentOverlay" class="overlay" role="dialog" aria-modal="true" aria-label="Record payment" aria-hidden="true">
-      <div class="overlay-sheet sheet">
-        <div class="sheet-handle" aria-hidden="true"></div>
-        <div class="sheet-head"><h2 class="sheet-title">Record Payment</h2><button class="sheet-close" onclick="closeOverlay('creditPaymentOverlay')">✕</button></div>
-        <input type="hidden" id="crpCustId">
-        <div class="crp-summary">
-          <div class="crp-name" id="crpCustName"></div>
-          <div class="crp-balance-label">Outstanding: <strong id="crpBalance"></strong></div>
-        </div>
-        <form onsubmit="saveCreditPayment(event)" novalidate>
-          <!-- ✅ Collect Full button -->
-          <button type="button" id="crpFullBtn" class="btn btn--outline btn--full" onclick="crpSetFull()">Collect Full Amount</button>
-          <div class="form-group mt-12">
-            <label class="form-label" for="crpAmount">Payment Amount (₹) *</label>
-            <input type="number" id="crpAmount" class="form-input form-input--large" min="1" required aria-required="true" placeholder="0">
-          </div>
-          <button type="submit" id="crpSubmitBtn" class="btn btn--primary btn--full">Record Payment</button>
-        </form>
-      </div>
-    </div>
-
-    <!-- Expense Form -->
-    <div id="expFormOverlay" class="overlay" role="dialog" aria-modal="true" aria-label="Expense form" aria-hidden="true">
-      <div class="overlay-sheet sheet">
-        <div class="sheet-handle" aria-hidden="true"></div>
-        <div class="sheet-head"><h2 class="sheet-title" id="efFormTitle">Add Expense</h2><button class="sheet-close" onclick="closeExpForm()">✕</button></div>
-        <form id="expForm" onsubmit="saveExp(event)" novalidate>
-          <input type="hidden" id="efId">
-          <div class="form-group">
-            <label class="form-label" for="efCategory">Category *</label>
-            <select id="efCategory" class="form-input" required>
-              <option value="">Select category</option>
-              <option value="Atta (Wheat)">Atta (Wheat)</option>
-              <option value="Oil">Oil</option>
-              <option value="Gas Cylinder">Gas Cylinder</option>
-              <option value="Polythene Bags">Polythene Bags</option>
-              <option value="Labour">Labour</option>
-              <option value="Electricity">Electricity</option>
-              <option value="Rent">Rent</option>
-              <option value="Transport">Transport</option>
-              <option value="Maintenance">Maintenance</option>
-              <option value="Other">Other</option>
-            </select>
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label class="form-label" for="efAmount">Amount (₹) *</label>
-              <input type="number" id="efAmount" class="form-input" min="0.01" max="999999" step="0.01" required aria-required="true">
-            </div>
-            <div class="form-group">
-              <label class="form-label" for="efDate">Date</label>
-              <input type="date" id="efDate" class="form-input" required>
-            </div>
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label class="form-label" for="efQty">Quantity</label>
-              <input type="number" id="efQty" class="form-input" min="0.01" step="0.1" placeholder="e.g. 25">
-            </div>
-            <div class="form-group">
-              <label class="form-label" for="efUnit">Unit</label>
-              <select id="efUnit" class="form-input">
-                <option value="">—</option>
-                <option value="kg">kg</option>
-                <option value="litre">litre</option>
-                <option value="piece">piece</option>
-                <option value="bag">bag</option>
-              </select>
-            </div>
-          </div>
-          <div class="form-group">
-            <label class="form-label" for="efNote">Note (optional)</label>
-            <input type="text" id="efNote" class="form-input" maxlength="200">
-          </div>
-          <button type="submit" id="efSubmitBtn" class="btn btn--primary btn--full">Save Expense</button>
-        </form>
-      </div>
-    </div>
-
-    <!-- Waste Form -->
-    <div id="wasteFormOverlay" class="overlay" role="dialog" aria-modal="true" aria-label="Waste form" aria-hidden="true">
-      <div class="overlay-sheet sheet">
-        <div class="sheet-handle" aria-hidden="true"></div>
-        <div class="sheet-head"><h2 class="sheet-title" id="wfFormTitle">Record Waste</h2><button class="sheet-close" onclick="closeWasteForm()">✕</button></div>
-        <!-- ✅ Today's production context -->
-        <div class="waste-ctx" id="wfProductionCtx" aria-live="polite"></div>
+    <div class="frm-body">
         <form id="wasteForm" onsubmit="saveWaste(event)" novalidate>
-          <input type="hidden" id="wfId">
-          <div class="form-group">
-            <label class="form-label" for="wfQty">Quantity wasted (roti) *</label>
-            <input type="number" id="wfQty" class="form-input" min="1" max="9999" step="1" required aria-required="true">
-          </div>
-          <div class="form-group">
-            <label class="form-label" for="wfDate">Date</label>
-            <input type="date" id="wfDate" class="form-input" required>
-          </div>
-          <div class="form-group">
-            <label class="form-label" for="wfNote">Note (optional)</label>
-            <input type="text" id="wfNote" class="form-input" maxlength="200">
-          </div>
-          <button type="submit" id="wfSubmitBtn" class="btn btn--primary btn--full">Record Waste</button>
-        </form>
-      </div>
-    </div>
+            <input type="hidden" id="wfId">
 
-    <!-- Note Form -->
-    <div id="noteFormOverlay" class="overlay" role="dialog" aria-modal="true" aria-label="Note form" aria-hidden="true">
-      <div class="overlay-sheet sheet">
-        <div class="sheet-handle" aria-hidden="true"></div>
-        <div class="sheet-head"><h2 class="sheet-title" id="nfFormTitle">New Note</h2><button class="sheet-close" onclick="closeNoteForm()">✕</button></div>
+            <div class="fg">
+                <label for="wfQty">Roti Quantity *</label>
+                <input type="number" id="wfQty" required placeholder="How many roti wasted" min="1" max="50000" inputmode="numeric">
+            </div>
+
+            <div class="fg">
+                <label>Reason *</label>
+                <div class="cat-row">
+                    <button type="button" class="cat active" onclick="setWasteReason('burnt',this)">🔥 Burnt</button>
+                    <button type="button" class="cat" onclick="setWasteReason('extra',this)">📦 Extra</button>
+                    <button type="button" class="cat" onclick="setWasteReason('returned',this)">↩️ Returned</button>
+                    <button type="button" class="cat" onclick="setWasteReason('other',this)">❓ Other</button>
+                </div>
+                <input type="hidden" id="wfReason" value="burnt">
+            </div>
+
+            <div class="fg">
+                <label for="wfNotes">Notes (Optional)</label>
+                <input type="text" id="wfNotes" placeholder="Any details" maxlength="200" autocomplete="off">
+            </div>
+
+            <button type="submit" class="pri-btn" id="wfSubmitBtn">💾 Save Waste Entry</button>
+        </form>
+    </div>
+</div>
+
+
+<!-- ======================================================
+     OVERLAY: CREDIT PAYMENT
+     ====================================================== -->
+<div id="creditPayOverlay" class="overlay" role="dialog" aria-labelledby="crpTitle" aria-modal="true">
+    <div class="pg-top">
+        <button class="pg-back" onclick="closeOverlay('creditPayOverlay')" aria-label="Close">‹</button>
+        <h2 id="crpTitle">Credit Details</h2>
+        <div></div>
+    </div>
+    <div class="frm-body">
+        <!-- Credit Summary -->
+        <div id="crpDetail" class="udh-detail" aria-label="Credit summary"></div>
+
+        <!-- Payment Form -->
+        <h3 class="sec-t" style="padding-left:0">Record Payment</h3>
+        <form id="crpForm" onsubmit="saveCreditPayment(event)" novalidate>
+            <input type="hidden" id="crpCustId">
+            <input type="hidden" id="crpCustName">
+            <input type="hidden" id="crpPayId">
+
+            <div class="fg">
+                <label for="crpAmount">Amount (₹) *</label>
+                <input type="number" id="crpAmount" required min="1" max="9999999" inputmode="numeric" placeholder="Payment amount">
+            </div>
+
+            <div class="fg">
+                <label for="crpDate">Payment Date</label>
+                <input type="date" id="crpDate" class="fg input" style="width:100%;padding:14px 16px;border:1.5px solid var(--bg2);border-radius:var(--rs);font-size:16px;color:var(--tx);background:var(--card);outline:none;font-family:inherit">
+            </div>
+
+            <div class="fg">
+                <label>Payment Mode</label>
+                <div class="tgl-row">
+                    <button type="button" class="tgl active" onclick="setPayType('crpPay','cash',this)" aria-pressed="true">💵 Cash</button>
+                    <button type="button" class="tgl" onclick="setPayType('crpPay','upi',this)" aria-pressed="false">📱 UPI</button>
+                </div>
+                <input type="hidden" id="crpPay" value="cash">
+            </div>
+
+            <button type="submit" class="pri-btn" id="crpSubmitBtn">💰 Save Payment</button>
+        </form>
+
+        <!-- Payment History -->
+        <h3 class="sec-t" style="padding-left:0;margin-top:20px">Payment History</h3>
+        <div id="crpHistory" aria-live="polite"></div>
+    </div>
+</div>
+
+
+<!-- ======================================================
+     OVERLAY: CHANGE PIN
+     ====================================================== -->
+<div id="changePinOverlay" class="overlay" role="dialog" aria-label="Change PIN" aria-modal="true">
+    <div class="pg-top">
+        <button class="pg-back" onclick="closeOverlay('changePinOverlay')" aria-label="Close">‹</button>
+        <h2>Change PIN</h2>
+        <div></div>
+    </div>
+    <div class="frm-body">
+        <form onsubmit="saveNewPin(event)" novalidate>
+            <div class="fg">
+                <label for="chpOld">Current PIN</label>
+                <input type="password" id="chpOld" required maxlength="4" minlength="4" pattern="[0-9]{4}" inputmode="numeric" placeholder="••••" autocomplete="off">
+            </div>
+            <div class="fg">
+                <label for="chpNew">New PIN</label>
+                <input type="password" id="chpNew" required maxlength="4" minlength="4" pattern="[0-9]{4}" inputmode="numeric" placeholder="••••" autocomplete="new-password">
+            </div>
+            <div class="fg">
+                <label for="chpConfirm">Confirm New PIN</label>
+                <input type="password" id="chpConfirm" required maxlength="4" minlength="4" pattern="[0-9]{4}" inputmode="numeric" placeholder="••••" autocomplete="new-password">
+            </div>
+            <button type="submit" class="pri-btn" id="chpSubmitBtn">🔐 Update PIN</button>
+        </form>
+    </div>
+</div>
+
+
+<!-- ======================================================
+     OVERLAY: TEAM MANAGER
+     ====================================================== -->
+<div id="teamOverlay" class="overlay" role="dialog" aria-label="Team management" aria-modal="true">
+    <div class="pg-top">
+        <button class="pg-back" onclick="closeOverlay('teamOverlay')" aria-label="Close">‹</button>
+        <h2>Team Members</h2>
+        <button class="pg-act" onclick="showAddMember()" aria-label="Add new team member">+ Add</button>
+    </div>
+    <div class="frm-body">
+        <div class="team-info">
+            <p>📱 Add family members so they can access the same data on their phones using their Google account.</p>
+        </div>
+        <div id="teamMemberList" aria-live="polite"></div>
+
+        <!-- Add Member Form (hidden by default) -->
+        <div id="addMemberForm" style="display:none">
+            <h3 class="sec-t" style="padding-left:0">Add New Member</h3>
+            <form onsubmit="addTeamMember(event)" novalidate>
+                <div class="fg">
+                    <label for="tmEmail">Email Address *</label>
+                    <input type="email" id="tmEmail" required placeholder="member@gmail.com" autocomplete="email" maxlength="200">
+                </div>
+                <div class="fg">
+                    <label>Role *</label>
+                    <div class="tgl-row">
+                        <button type="button" class="tgl active" onclick="setPayType('tmRole','admin',this)" aria-pressed="true">👑 Admin</button>
+                        <button type="button" class="tgl" onclick="setPayType('tmRole','staff',this)" aria-pressed="false">👤 Staff</button>
+                    </div>
+                    <input type="hidden" id="tmRole" value="admin">
+                </div>
+                <div class="role-info">
+                    <p><strong>👑 Admin:</strong> Full access — add, edit, delete</p>
+                    <p><strong>👤 Staff:</strong> Can only add entries</p>
+                </div>
+                <button type="submit" class="pri-btn" id="tmSubmitBtn">👥 Add Member</button>
+            </form>
+        </div>
+    </div>
+</div>
+
+
+<!-- ======================================================
+     BOTTOM SHEET: CUSTOMER PICKER
+     ====================================================== -->
+<div id="custPickerSheet" class="bts" role="dialog" aria-label="Select customer" aria-modal="true">
+    <div class="bts-overlay" onclick="closeCustPicker()" aria-hidden="true"></div>
+    <div class="bts-panel">
+        <div class="bts-handle" aria-hidden="true"></div>
+        <div class="bts-hdr">
+            <h3>Select Customer</h3>
+            <button class="bts-close" onclick="closeCustPicker()" aria-label="Close picker">✕</button>
+        </div>
+        <input type="text" class="bts-search" id="custSearch" placeholder="🔍 Search customer..." oninput="filterCustPicker(this.value)" autocomplete="off">
+        <div class="bts-list" id="custPickerList" role="listbox" aria-label="Customer list"></div>
+    </div>
+</div>
+
+
+<!-- ======================================================
+     BOTTOM SHEET: CUSTOM DATE PICKER
+     ====================================================== -->
+<div id="datePickerSheet" class="bts" role="dialog" aria-label="Select date" aria-modal="true">
+    <div class="bts-overlay" onclick="closeDatePicker()" aria-hidden="true"></div>
+    <div class="bts-panel">
+        <div class="bts-handle" aria-hidden="true"></div>
+        <div class="bts-hdr">
+            <h3>Select Date</h3>
+            <button class="bts-close" onclick="closeDatePicker()" aria-label="Close date picker">✕</button>
+        </div>
+
+        <!-- Quick Date Shortcuts -->
+        <div class="dp-quick">
+            <button class="dp-qb" onclick="pickQuickDate('today')" aria-label="Select today">Today</button>
+            <button class="dp-qb" onclick="pickQuickDate('yesterday')" aria-label="Select yesterday">Yesterday</button>
+            <button class="dp-qb" onclick="pickQuickDate('week')" aria-label="Select this week start">This Week</button>
+        </div>
+
+        <!-- Calendar -->
+        <div class="dp-cal">
+            <div class="dp-nav">
+                <button class="dp-nav-btn" id="dpPrevBtn" onclick="dpMonth(-1)" aria-label="Previous month">‹</button>
+                <span class="dp-month" id="dpMonthLabel"></span>
+                <button class="dp-nav-btn" id="dpNextBtn" onclick="dpMonth(1)" aria-label="Next month">›</button>
+            </div>
+            <div class="dp-weekdays" aria-hidden="true">
+                <span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span><span>Su</span>
+            </div>
+            <div class="dp-days" id="dpDays" role="grid" aria-label="Calendar days"></div>
+            <!-- Selected date info when viewing different month -->
+            <div class="dp-selected-info" id="dpSelectedInfo" style="display:none" aria-live="polite"></div>
+        </div>
+    </div>
+</div>
+
+
+<!-- ======================================================
+     CONFIRM DIALOG
+     ====================================================== -->
+<div id="confirmDialog" class="modal-bg" role="alertdialog" aria-modal="true" aria-labelledby="confirmTitle" aria-describedby="confirmMsg">
+    <div class="modal-box">
+        <div class="m-icon" id="confirmIcon" aria-hidden="true"></div>
+        <h3 id="confirmTitle"></h3>
+        <p id="confirmMsg"></p>
+        <div class="m-btns">
+            <button class="m-btn m-no" onclick="hideConfirm()" aria-label="Cancel">Cancel</button>
+            <button class="m-btn m-yes" id="confirmYesBtn" onclick="onConfirmYes()" aria-label="Confirm action">Confirm</button>
+        </div>
+    </div>
+</div>
+
+
+<!-- ======================================================
+     TOAST NOTIFICATION
+     ====================================================== -->
+<div id="toast" class="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+
+
+<!-- ======================================================
+     OFFLINE INDICATOR
+     ====================================================== -->
+<div id="offlineBanner" class="offline-banner" role="alert" aria-live="assertive" style="display:none">
+    <span>📴 You're offline — Changes will sync when connected</span>
+</div>
+
+
+
+<!-- ======================================================
+     NOTEBOOK SCREEN ★ v5.0
+     ====================================================== -->
+<div id="notebookScreen" class="screen" role="main">
+    <div class="hdr">
+        <div class="hdr-left">
+            <div class="hdr-title">📓 Notebook</div>
+            <div class="hdr-sub" id="noteCount">0 notes</div>
+        </div>
+        <div class="hdr-acts">
+            <button class="hdr-btn" onclick="openNoteForm()" aria-label="Add new note">+</button>
+        </div>
+    </div>
+    <div class="search-bar">
+        <input type="text" class="search-inp" id="noteSearch" placeholder="🔍 Notes search karo..." oninput="searchNotes(this.value)" autocomplete="off">
+    </div>
+    <div class="list-wrap" id="noteList" aria-live="polite"></div>
+</div>
+
+
+<!-- ======================================================
+     OVERLAY: NOTE FORM ★ v5.0
+     ====================================================== -->
+<div id="noteFormOverlay" class="overlay" role="dialog" aria-modal="true" aria-labelledby="nfFormTitle">
+    <div class="ov-hdr">
+        <h3 id="nfFormTitle">Naya Note</h3>
+        <button class="ov-close" onclick="closeOverlay('noteFormOverlay')" aria-label="Close">✕</button>
+    </div>
+    <div style="padding:20px;padding-bottom:calc(40px + var(--safe-b))">
         <form id="noteForm" onsubmit="saveNote(event)" novalidate>
-          <input type="hidden" id="nfId">
-          <input type="hidden" id="nfCategory" value="general">
-          <div class="cat-btns" role="group" aria-label="Note category">
-            <button type="button" class="cat-btn cat-btn--active" data-cat="general"  onclick="setNoteCategory('general',this)">📝 General</button>
-            <button type="button" class="cat-btn" data-cat="reminder" onclick="setNoteCategory('reminder',this)">🔔 Reminder</button>
-            <button type="button" class="cat-btn" data-cat="idea"     onclick="setNoteCategory('idea',this)">💡 Idea</button>
-            <button type="button" class="cat-btn" data-cat="supplier" onclick="setNoteCategory('supplier',this)">🏪 Supplier</button>
-          </div>
-          <div class="form-group">
-            <label class="form-label" for="nfTitle">Title (optional)</label>
-            <input type="text" id="nfTitle" class="form-input" maxlength="100">
-          </div>
-          <div class="form-group">
-            <label class="form-label" for="nfContent">Note *</label>
-            <textarea id="nfContent" class="form-input form-textarea" rows="5" maxlength="5000" required aria-required="true"></textarea>
-          </div>
-          <label class="toggle-label">
-            <input type="checkbox" id="nfPinned" role="switch" aria-label="Pin this note">
-            <span>📌 Pin this note</span>
-          </label>
-          <button type="submit" id="nfSubmitBtn" class="btn btn--primary btn--full">Save Note</button>
+            <input type="hidden" id="nfId">
+            <div class="form-group">
+                <label class="form-label">Title <span class="form-opt">(optional)</span></label>
+                <input type="text" class="form-inp" id="nfTitle" placeholder="e.g. Sharma Ji ka number" maxlength="100" autocomplete="off">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Note <span class="form-req">*</span></label>
+                <textarea class="form-inp form-ta" id="nfContent" placeholder="Yahan likho..." rows="5" maxlength="2000" required></textarea>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Category</label>
+                <div style="display:flex;flex-wrap:wrap;gap:8px">
+                    <button type="button" class="note-cat-btn active" data-cat="general" onclick="setNoteCategory('general',this)">📝 General</button>
+                    <button type="button" class="note-cat-btn" data-cat="reminder" onclick="setNoteCategory('reminder',this)">🔔 Reminder</button>
+                    <button type="button" class="note-cat-btn" data-cat="idea" onclick="setNoteCategory('idea',this)">💡 Idea</button>
+                    <button type="button" class="note-cat-btn" data-cat="supplier" onclick="setNoteCategory('supplier',this)">🏪 Supplier</button>
+                </div>
+                <input type="hidden" id="nfCategory" value="general">
+            </div>
+            <div class="form-group">
+                <label class="pin-toggle-label">
+                    <input type="checkbox" class="pin-toggle-inp" id="nfPinned">
+                    <span class="pin-toggle-text">📌 Pin this note (important)</span>
+                </label>
+            </div>
+            <button type="submit" id="nfSubmitBtn" class="form-btn">💾 Note Save Karo</button>
         </form>
+    </div>
+</div>
+
+
+
+<!-- ======================================================
+     ANALYTICS SCREEN ★ PHASE 2
+     ====================================================== -->
+<div id="analyticsScreen" class="screen" role="main">
+
+  <!-- Page Header -->
+  <div class="pg-top">
+    <button class="pg-back" onclick="goTo('dashboardScreen')" aria-label="Back">‹</button>
+    <h2>Analytics</h2>
+    <span></span>
+  </div>
+
+  <div class="pg-body">
+
+    <!-- ── SMART INSIGHTS ─────────────────────────── -->
+    <div class="an-section">
+      <div class="an-section-title">💡 Smart Insights</div>
+      <div class="an-section-sub">Live alerts based on your current business data</div>
+      <div id="dashInsights">
+        <div class="no-data" style="font-size:13px">Loading insights...</div>
       </div>
     </div>
 
-    <!-- Date Picker -->
-    <div id="datepickerOverlay" class="overlay" role="dialog" aria-modal="true" aria-label="Pick a date" aria-hidden="true">
-      <div class="overlay-sheet sheet sheet--sm">
-        <div class="sheet-handle" aria-hidden="true"></div>
-        <div class="dp-nav">
-          <button class="dp-nav-btn" onclick="dpNavMonth(-1)" aria-label="Previous month"><i class="ti ti-chevron-left"></i></button>
-          <h3 id="dpMonthTitle" class="dp-month-title"></h3>
-          <button class="dp-nav-btn" onclick="dpNavMonth(1)"  aria-label="Next month"><i class="ti ti-chevron-right"></i></button>
+    <!-- ── STOCK TRACKER ──────────────────────────── -->
+    <div class="an-section">
+      <div class="an-section-title">📦 Stock Tracker</div>
+      <div class="an-section-sub">Atta & Oil — true remaining stock, not just last purchase</div>
+      <div id="stockTrackerBody">
+        <div class="no-data" style="font-size:13px">Loading stock data...</div>
+      </div>
+    </div>
+
+    <!-- ── PRICE TREND ────────────────────────────── -->
+    <div class="an-section">
+      <div class="an-section-title">📈 Price Trend</div>
+      <div class="an-section-sub">Rate history and price comparison</div>
+
+      <div class="price-cat-row">
+        <button class="price-cat-btn active" data-cat="atta"
+                onclick="renderPriceTrend('atta')" aria-label="View atta price trend">
+          🌾 Atta
+        </button>
+        <button class="price-cat-btn" data-cat="oil"
+                onclick="renderPriceTrend('oil')" aria-label="View oil price trend">
+          🛢️ Oil
+        </button>
+      </div>
+
+      <div id="priceTrendChart" style="height:140px;"></div>
+      <div id="priceBadges" class="price-badges" style="margin-top:12px"></div>
+    </div>
+
+    <!-- ── DAY-WISE SALES + FORECAST ─────────────── -->
+    <div class="an-section">
+      <div class="an-section-title">📅 Day-wise Sales</div>
+      <div class="an-section-sub">Which day earns the most — pattern detection</div>
+
+      <div class="an-window-row">
+        <button class="an-window-btn active"
+                onclick="setAnalyticsWindow(30, this)">30 Days</button>
+        <button class="an-window-btn"
+                onclick="setAnalyticsWindow(90, this)">90 Days</button>
+        <button class="an-window-btn"
+                onclick="setAnalyticsWindow(0, this)">All Time</button>
+      </div>
+
+      <div id="dayWiseSalesBody">
+        <div class="no-data" style="font-size:13px">Loading...</div>
+      </div>
+
+      <div style="margin-top:16px;">
+        <div style="font-size:12px;font-weight:700;color:var(--tx2);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px;">
+          📊 7-Day Revenue Forecast
         </div>
-        <div id="dpGrid" class="dp-grid" role="grid" aria-label="Calendar"></div>
-      </div>
-    </div>
-
-    <!-- Confirm Dialog -->
-    <div id="confirmDialog" class="overlay overlay--dialog" role="alertdialog" aria-modal="true" aria-labelledby="cfTitle" aria-hidden="true">
-      <div class="confirm-box">
-        <div class="confirm-icon" id="cfIcon" aria-hidden="true">⚠️</div>
-        <h3 class="confirm-title" id="cfTitle"></h3>
-        <p  class="confirm-body"  id="cfBody"></p>
-        <div class="confirm-actions">
-          <button class="btn btn--ghost" id="cfNo"></button>
-          <button class="btn btn--danger" id="cfYes"></button>
+        <div id="forecastBody">
+          <div class="no-data" style="font-size:12px">Forecast requires 5+ days of data</div>
         </div>
       </div>
     </div>
 
-    <!-- Export Summary -->
-    <div id="exportSummaryOverlay" class="overlay" role="dialog" aria-modal="true" aria-label="Export summary" aria-hidden="true">
-      <div class="overlay-sheet sheet sheet--sm">
-        <div class="sheet-handle" aria-hidden="true"></div>
-        <div class="sheet-head"><h2 class="sheet-title">Export Summary</h2><button class="sheet-close" onclick="closeExportSummary()">✕</button></div>
-        <div id="exportSummaryContent"></div>
-        <button id="rptPdfBtn" class="btn btn--primary btn--full" onclick="downloadPdf()"><i class="ti ti-file-type-pdf"></i> Download PDF</button>
-      </div>
-    </div>
+    <!-- ── UNIT ECONOMICS ─────────────────────────── -->
+    <div class="an-section">
+      <div class="an-section-title">⚖️ Unit Economics</div>
+      <div class="an-section-sub">True profit per roti — all costs included</div>
 
-    <!-- Business Name Edit -->
-    <div id="bizNameOverlay" class="overlay" role="dialog" aria-modal="true" aria-label="Edit business name" aria-hidden="true">
-      <div class="overlay-sheet sheet sheet--sm">
-        <div class="sheet-handle" aria-hidden="true"></div>
-        <div class="sheet-head"><h2 class="sheet-title">Business Name</h2><button class="sheet-close" onclick="closeOverlay('bizNameOverlay')">✕</button></div>
-        <div class="form-group">
-          <label class="form-label" for="settingsBizNameInput">Name</label>
-          <input type="text" id="settingsBizNameInput" class="form-input" maxlength="100" placeholder="My Roti Business">
+      <!-- Gauge -->
+      <div class="ue-gauge-wrap">
+        <div class="ue-gauge-outer">
+          <div class="ue-gauge-fill" id="ueGaugeFill"
+               style="transform:rotate(-90deg);background:var(--gn)"></div>
         </div>
-        <button class="btn btn--primary btn--full" onclick="saveBizName()">Save</button>
+        <div class="ue-gauge-center" id="ueMarginPct">—%</div>
+        <div class="ue-gauge-label">True Profit Margin</div>
+      </div>
+
+      <div id="unitEconBody">
+        <div class="no-data" style="font-size:13px">Loading economics data...</div>
       </div>
     </div>
 
-    <!-- Change PIN -->
-    <div id="changePinOverlay" class="overlay" role="dialog" aria-modal="true" aria-label="Change PIN" aria-hidden="true">
-      <div class="overlay-sheet sheet sheet--sm">
-        <div class="sheet-handle" aria-hidden="true"></div>
-        <div class="sheet-head"><h2 class="sheet-title">Change PIN</h2><button class="sheet-close" onclick="closeOverlay('changePinOverlay')">✕</button></div>
-        <div class="pin-screen">
-          <div class="pin-screen__title" id="changePinLabel">Enter new PIN</div>
-          <div class="pin-dots" id="changePinDots"><i></i><i></i><i></i><i></i></div>
-          <div class="pin-keypad" role="group">
-            <button class="pin-key" onclick="changePinKey('1')">1</button><button class="pin-key" onclick="changePinKey('2')">2</button><button class="pin-key" onclick="changePinKey('3')">3</button>
-            <button class="pin-key" onclick="changePinKey('4')">4</button><button class="pin-key" onclick="changePinKey('5')">5</button><button class="pin-key" onclick="changePinKey('6')">6</button>
-            <button class="pin-key" onclick="changePinKey('7')">7</button><button class="pin-key" onclick="changePinKey('8')">8</button><button class="pin-key" onclick="changePinKey('9')">9</button>
-            <div></div><button class="pin-key" onclick="changePinKey('0')">0</button><button class="pin-key" onclick="changePinKey('_BACK_')">⌫</button>
-          </div>
+    <!-- ── CUSTOMER INSIGHTS ──────────────────────── -->
+    <div class="an-section">
+      <div class="an-section-title">👥 Customer Insights</div>
+      <div class="an-section-sub">Top customers by revenue with risk scoring</div>
+      <div id="customerInsightsBody">
+        <div class="no-data" style="font-size:13px">Loading customer data...</div>
+      </div>
+    </div>
+
+  </div><!-- end pg-body -->
+</div><!-- end analyticsScreen -->
+
+
+<!-- ======================================================
+     CUSTOMER PROFILE OVERLAY ★ PHASE 2
+     ====================================================== -->
+<div id="customerProfileOverlay" class="overlay" role="dialog" aria-label="Customer Profile" aria-modal="true">
+    <div class="pg-top">
+        <button class="pg-back" onclick="closeOverlay('customerProfileOverlay')" aria-label="Close">‹</button>
+        <h2>Customer Profile</h2>
+        <div></div>
+    </div>
+    <div class="frm-body" style="padding-top:0">
+        <div class="cp-header">
+            <div class="cp-avatar" aria-hidden="true">👤</div>
+            <div class="cp-info">
+                <div class="cp-name" id="cpName">Customer</div>
+                <div class="cp-sub" id="cpSub"></div>
+                <div class="cp-phone" id="cpPhone" style="display:none"></div>
+            </div>
         </div>
-      </div>
+        <div class="cp-stats-grid">
+            <div class="cp-stat-card"><span class="cp-stat-val" id="cpTotalOrders">0</span><span class="cp-stat-lbl">Orders</span></div>
+            <div class="cp-stat-card"><span class="cp-stat-val" id="cpTotalRoti">0</span><span class="cp-stat-lbl">Total Roti</span></div>
+            <div class="cp-stat-card"><span class="cp-stat-val green" id="cpTotalAmt">₹0</span><span class="cp-stat-lbl">Revenue</span></div>
+            <div class="cp-stat-card"><span class="cp-stat-val" id="cpAvgOrder">0</span><span class="cp-stat-lbl">Avg Order</span></div>
+            <div class="cp-stat-card"><span class="cp-stat-val" id="cpActiveDays">0</span><span class="cp-stat-lbl">Active Days</span></div>
+            <div class="cp-stat-card"><span class="cp-stat-val" id="cpBestDay">—</span><span class="cp-stat-lbl">Best Day</span></div>
+        </div>
+        <div class="an-card" style="margin:12px 0">
+            <div class="ud-row"><span class="ud-label">First order</span><span class="ud-val" id="cpFirstOrder">—</span></div>
+            <div class="ud-row" style="border:none"><span class="ud-label">Last order</span><span class="ud-val" id="cpLastOrder">—</span></div>
+        </div>
+        <div class="an-section-hdr" style="margin-top:4px">
+            <div class="an-section-ic">💳</div>
+            <div class="an-section-title">Payment Preference</div>
+        </div>
+        <div class="an-card"><div style="height:160px;position:relative"><canvas id="cpPayChart"></canvas></div></div>
+        <div class="an-section-hdr" style="margin-top:4px">
+            <div class="an-section-ic">📅</div>
+            <div class="an-section-title">Orders by Day</div>
+        </div>
+        <div class="an-card"><div style="height:120px;position:relative"><canvas id="cpDayChart"></canvas></div></div>
+        <div id="cpCreditSection">
+            <div class="an-section-hdr" style="margin-top:4px">
+                <div class="an-section-ic">🎯</div>
+                <div class="an-section-title">Credit Reliability</div>
+            </div>
+            <div class="an-card">
+                <div class="ud-row"><span class="ud-label">Credit given</span><span class="ud-val amber" id="cpCreditGiven">₹0</span></div>
+                <div class="ud-row"><span class="ud-label">Credit paid</span><span class="ud-val green" id="cpCreditPaid">₹0</span></div>
+                <div class="ud-row" style="border:none"><span class="ud-label">Pending</span><span class="cp-stat-val" id="cpCreditPending">₹0</span></div>
+                <div style="margin-top:12px">
+                    <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+                        <span style="font-size:12px;color:var(--tx2);font-weight:600">Payment Reliability</span>
+                        <span style="font-size:13px;font-weight:800" id="cpReliabilityPct">100%</span>
+                    </div>
+                    <div class="reliability-bar-bg"><div class="reliability-bar-fill" id="cpReliabilityScore" style="width:100%"></div></div>
+                </div>
+            </div>
+        </div>
+        <div class="an-section-hdr" style="margin-top:4px">
+            <div class="an-section-ic">🧾</div>
+            <div class="an-section-title">Recent Orders</div>
+        </div>
+        <div class="an-card"><div id="cpRecentOrders"></div></div>
     </div>
+</div>
 
-    <!-- ════════════════════════════════════════════════════════════════
-         TOAST (with UNDO button)
-    ═══════════════════════════════════════════════════════════════════ -->
-    <div id="toast" class="toast" role="alert" aria-live="assertive" aria-atomic="true" aria-hidden="true">
-      <span id="toastMsg"></span>
-      <button id="toastUndoBtn" class="toast-undo-btn" style="display:none" aria-label="Undo">UNDO</button>
+
+<!-- ======================================================
+     PWA INSTALL BANNER ★ PHASE 3
+     ====================================================== -->
+<div id="installBanner" class="install-banner" role="complementary" aria-label="Install app">
+    <div class="ib-content">
+        <span class="ib-icon">🫓</span>
+        <div class="ib-text">
+            <strong>Install Meri Dukaan</strong>
+            <span>Home screen pe add karo — faster access!</span>
+        </div>
     </div>
-
-  </div><!-- /#app -->
-
-  <!-- Skip to content link (keyboard nav) -->
-  <a href="#app" class="skip-link">Skip to content</a>
-
-  <noscript>
-    <div style="font-family:sans-serif;padding:24px;text-align:center">
-      <h2>JavaScript Required</h2>
-      <p>Please enable JavaScript in your browser to use Meri Dukaan.</p>
+    <div class="ib-btns">
+        <button class="ib-install" onclick="triggerInstall()">Install</button>
+        <button class="ib-dismiss" onclick="hideInstallBanner()" aria-label="Dismiss">✕</button>
     </div>
-  </noscript>
+</div>
 
-  <!-- Service Worker Registration -->
-  <script>
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js').then(reg => {
-          console.log('[SW] Registered:', reg.scope);
-          // Apply stored theme immediately (before JS modules load)
-          const theme = localStorage.getItem('mdTheme') || 'dark';
-          document.documentElement.dataset.theme = theme === 'auto'
-            ? (window.matchMedia('(prefers-color-scheme:dark)').matches ? 'dark' : 'light')
-            : theme;
-        }).catch(err => console.warn('[SW] Registration failed:', err));
-      });
+
+<!-- ======================================================
+     BOTTOM NAVIGATION
+     ====================================================== -->
+<nav id="bottomNav" class="bnav bnav-6" role="navigation" aria-label="Main navigation">
+    <button class="bn-i active" data-s="dashboardScreen" onclick="goTo('dashboardScreen')" aria-label="Home dashboard" aria-current="page">
+        <span class="bn-ic" aria-hidden="true">🏠</span>
+        <span>Home</span>
+    </button>
+    <button class="bn-i" data-s="quickSaleScreen" onclick="goTo('quickSaleScreen')" aria-label="Quick sale entry">
+        <span class="bn-ic" aria-hidden="true">⚡</span>
+        <span>Quick</span>
+    </button>
+    <button class="bn-i" data-s="salesScreen" onclick="goTo('salesScreen')" aria-label="Sales list">
+        <span class="bn-ic" aria-hidden="true">🫓</span>
+        <span>Sales</span>
+    </button>
+    <button class="bn-i" data-s="creditScreen" onclick="goTo('creditScreen')" aria-label="Credit register">
+        <span class="bn-ic" aria-hidden="true">💳</span>
+        <span>Credit</span>
+    </button>
+    <button class="bn-i" data-s="reportScreen" onclick="goTo('reportScreen')" aria-label="Reports">
+        <span class="bn-ic" aria-hidden="true">📊</span>
+        <span>Reports</span>
+    </button>
+    <button class="bn-i" data-s="notebookScreen" onclick="goTo('notebookScreen')" aria-label="Notebook notes">
+        <span class="bn-ic" aria-hidden="true">📓</span>
+        <span>Notes</span>
+    </button>
+</nav>
+
+
+<!-- ======================================================
+     SCRIPTS
+     ====================================================== -->
+<script src="js/core.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/data.js"></script>
+<script src="js/reports.js"></script>
+<script src="js/settings.js"></script>
+<script src="js/notebook.js"></script>
+<script src="js/analytics.js"></script>
+<script src="js/email.js"></script>
+
+<!-- Service Worker Registration -->
+<script>
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function() {
+        navigator.serviceWorker.register('./sw.js')
+        .then(function(registration) {
+            console.log('[App] SW registered, scope:', registration.scope);
+
+            // Check for updates every 30 minutes
+            setInterval(function() {
+                registration.update();
+            }, 30 * 60 * 1000);
+
+            // Listen for new service worker
+            registration.addEventListener('updatefound', function() {
+                var newWorker = registration.installing;
+                if (newWorker) {
+                    newWorker.addEventListener('statechange', function() {
+                        if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                            // New version available
+                            showUpdateBanner();
+                        }
+                    });
+                }
+            });
+        })
+        .catch(function(err) {
+            console.warn('[App] SW registration failed:', err);
+        });
+    });
+
+    // Handle controller change (new SW activated)
+    navigator.serviceWorker.addEventListener('controllerchange', function() {
+        console.log('[App] New service worker activated');
+    });
+}
+
+function showUpdateBanner() {
+    var badge = document.getElementById('updateBadge');
+    if (badge) {
+        badge.style.display = 'inline';
+        badge.textContent = '🔄 Update';
     }
-  </script>
+    // Show toast
+    if (typeof showToast === 'function') {
+        showToast('🔄 New version available! Restart app to update.', 'success');
+    }
+}
+</script>
 
-  <!-- Chart.js (loaded async — only when needed) -->
-  <script async defer src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<!-- Keyboard Shortcuts -->
+<script>
+document.addEventListener('keydown', function(e) {
+    // ESC to close overlays and bottom sheets
+    if (e.key === 'Escape') {
+        // Close confirm dialog first
+        var confirm = document.getElementById('confirmDialog');
+        if (confirm && confirm.classList.contains('active')) {
+            if (typeof hideConfirm === 'function') hideConfirm();
+            return;
+        }
 
-  <!-- Main app entry point (ES Module) -->
-  <script type="module" src="js/auth.js"></script>
+        // Close bottom sheets
+        var sheets = document.querySelectorAll('.bts.active');
+        if (sheets.length) {
+            sheets.forEach(function(s) { s.classList.remove('active'); });
+            return;
+        }
+
+        // Close overlays
+        var overlay = document.querySelector('.overlay.active');
+        if (overlay) {
+            if (typeof closeOverlay === 'function') closeOverlay(overlay.id);
+            return;
+        }
+    }
+});
+</script>
+
+<!-- Offline/Online Detection -->
+<script>
+function updateOfflineBanner() {
+    var banner = document.getElementById('offlineBanner');
+    if (banner) {
+        banner.style.display = navigator.onLine ? 'none' : 'flex';
+    }
+}
+window.addEventListener('online', function() {
+    updateOfflineBanner();
+    if (typeof showToast === 'function') showToast('✅ Back online! Syncing...', 'success');
+});
+window.addEventListener('offline', function() {
+    updateOfflineBanner();
+    if (typeof showToast === 'function') showToast('📴 You are offline', 'error');
+});
+updateOfflineBanner();
+</script>
+
+<script>
+(function(){
+    var params=new URLSearchParams(window.location.search);
+    var t=params.get("screen");
+    if(t) localStorage.setItem("mdShortcutTarget",t);
+})();
+</script>
 </body>
 </html>

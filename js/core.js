@@ -1,450 +1,422 @@
 /* ================================================
-   MERI DUKAAN v8.0 — CORE UTILITIES
-   Toast queue · Promise-based Confirm · Overlays
-   Date helpers · Format helpers · DOM helpers
+   MERI DUKAAN v7.0 — CORE
+   Firebase · State · Utils · Theme
+   PHASE 1 FIXES:
+   ✅ hashPin() — SHA-256 via Web Crypto (replaces btoa)
+   ✅ requestDashRefresh() — debounced, prevents 3x render
+   ✅ showToast() — duration based on type (error=6s, success=3s)
+   ✅ pinAttempts / pinLockUntil — persisted in localStorage
+   ✅ Removed dead globals batchSelectMode, batchSelected
    ================================================ */
 
-import { t } from './i18n.js';
 
-// ── Toast Queue ──────────────────────────────────────────────────────────
-const _toastQueue = [];
-let   _toastActive = false;
+// ============ FIREBASE INIT ============
+var firebaseConfig = {
+    apiKey:            "AIzaSyAXqAvTLGfjwEniREFH7AHJ_rgLRAiS7SM",
+    authDomain:        "meridukaan-5beaf.firebaseapp.com",
+    projectId:         "meridukaan-5beaf",
+    storageBucket:     "meridukaan-5beaf.firebasestorage.app",
+    messagingSenderId: "286377172046",
+    appId:             "1:286377172046:web:5bc0334b0230299e71771f"
+};
 
-export function showToast(msg, type = 'info', duration = 3000) {
-  _toastQueue.push({ msg, type, duration });
-  if (!_toastActive) _processToastQueue();
+firebase.initializeApp(firebaseConfig);
+var auth = firebase.auth();
+var fdb  = firebase.firestore();
+
+fdb.enablePersistence({ synchronizeTabs: true }).catch(function(err) {
+    if (err.code === 'failed-precondition') console.warn('[DB] Multi-tab: offline persistence limited');
+    else if (err.code === 'unimplemented')  console.warn('[DB] Browser: offline persistence not supported');
+});
+
+
+// ============ GLOBAL STATE ============
+var currentUser        = null;
+var businessId         = null;
+var businessRef        = null;
+var userRole           = 'owner';
+var allCustomers       = [];
+var allSales           = [];
+var allExpenses        = [];
+var allWaste           = [];
+var allCreditPayments  = [];
+var allNotes           = [];
+var unsubscribers      = [];
+var currentPeriod      = 'today';
+var curReport          = 'daily';
+var dpTarget           = '';
+var dpViewDate         = new Date();
+var dpSelectedDate     = '';
+var rptData            = {};
+var pickerMode         = '';
+var pinIn              = '';
+var pin1               = '';
+var cfCb               = null;
+var salesChart         = null;
+var expenseChart       = null;
+var currentTheme       = localStorage.getItem('mdTheme') || 'auto';
+var reportTimer        = null;
+var deferredInstallPrompt = null;
+
+// ---- PIN brute-force protection — persisted across page refreshes ----
+var pinAttempts  = parseInt(localStorage.getItem('mdPinAttempts')  || '0', 10);
+var pinLockUntil = parseInt(localStorage.getItem('mdPinLockUntil') || '0', 10);
+
+
+// ============ UTILITIES ============
+function esc(s) {
+    if (!s) return '';
+    return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
 }
+function S(n) { return n < 10 ? '0' + n : '' + n; }
 
-function _processToastQueue() {
-  if (!_toastQueue.length) { _toastActive = false; return; }
-  _toastActive = true;
-  const { msg, type, duration } = _toastQueue.shift();
-  const el = document.getElementById('toast');
-  if (!el) { _toastActive = false; return; }
-  el.textContent   = msg;
-  el.className     = `toast toast--${type} toast--show`;
-  el.setAttribute('aria-hidden', 'false');
-  setTimeout(() => {
-    el.className = 'toast';
-    el.setAttribute('aria-hidden', 'true');
-    setTimeout(_processToastQueue, 300);
-  }, duration);
+function todayStr() {
+    var d = new Date();
+    return d.getFullYear() + '-' + S(d.getMonth() + 1) + '-' + S(d.getDate());
 }
-
-// ── Promise-based Confirm Dialog ─────────────────────────────────────────
-export function showConfirm(icon, title, body, opts = {}) {
-  return new Promise((resolve) => {
-    const d     = document.getElementById('confirmDialog');
-    const iEl   = document.getElementById('cfIcon');
-    const tEl   = document.getElementById('cfTitle');
-    const bEl   = document.getElementById('cfBody');
-    const yBtn  = document.getElementById('cfYes');
-    const nBtn  = document.getElementById('cfNo');
-    if (!d) { resolve(false); return; }
-
-    if (iEl) iEl.textContent  = icon  || '⚠️';
-    if (tEl) tEl.textContent  = title || t('confirm');
-    if (bEl) bEl.textContent  = body  || '';
-    if (yBtn) yBtn.textContent = opts.yesLabel || t('yes_delete');
-    if (nBtn) nBtn.textContent = opts.noLabel  || t('no_cancel');
-
-    // Dangerous action: style the yes button red
-    if (yBtn) yBtn.dataset.danger = opts.danger !== false ? 'true' : 'false';
-
-    function cleanup() {
-      d.classList.remove('active');
-      d.setAttribute('aria-hidden', 'true');
-      yBtn && yBtn.removeEventListener('click', onYes);
-      nBtn && nBtn.removeEventListener('click', onNo);
-      document.removeEventListener('keydown', onKey);
-      // restore focus
-      if (_confirmPrevFocus) { _confirmPrevFocus.focus(); _confirmPrevFocus = null; }
+function fmtDate(s) {
+    if (!s) return '';
+    var p = s.split('-');
+    return p[2] + '/' + p[1] + '/' + p[0];
+}
+function fmtDateLong(s) {
+    if (!s) return '';
+    var d = new Date(s + 'T00:00:00');
+    var m = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return d.getDate() + ' ' + m[d.getMonth()] + ' ' + d.getFullYear();
+}
+function fmtDateBtn(s) {
+    if (!s) return 'Select Date';
+    var d = new Date(s + 'T00:00:00');
+    var m    = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    var days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+    var today = todayStr();
+    if (s === today) return '📅 Today, ' + d.getDate() + ' ' + m[d.getMonth()];
+    var yd = new Date();
+    yd.setDate(yd.getDate() - 1);
+    var yds = yd.getFullYear() + '-' + S(yd.getMonth() + 1) + '-' + S(yd.getDate());
+    if (s === yds) return '📅 Yesterday, ' + d.getDate() + ' ' + m[d.getMonth()];
+    return '📅 ' + days[d.getDay()] + ', ' + d.getDate() + ' ' + m[d.getMonth()] + ' ' + d.getFullYear();
+}
+function getTime(ts) {
+    if (!ts) return '';
+    var d;
+    if (typeof ts.toDate === 'function') d = ts.toDate();
+    else if (ts instanceof Date) d = ts;
+    else d = new Date(ts);
+    if (isNaN(d.getTime())) return '';
+    var h = d.getHours(), ap = h >= 12 ? 'PM' : 'AM';
+    h = h % 12 || 12;
+    return h + ':' + S(d.getMinutes()) + ' ' + ap;
+}
+function catIc(c)  { return { atta:'🌾', oil:'🛢️', gas:'🔥', poly:'🛍️', other:'📦' }[c] || '📦'; }
+function catNm(c)  { return { atta:'Atta', oil:'Oil', gas:'Gas Cylinder', poly:'Polythene', other:'Other' }[c] || c; }
+function payBdg(p) {
+    if (p === 'cash') return { t:'💵 Cash',   c:'slb-c' };
+    if (p === 'upi')  return { t:'📱 UPI',    c:'slb-u' };
+    return                   { t:'💳 Credit', c:'slb-h' };
+}
+function wasteReasonText(r) {
+    return { burnt:'🔥 Burnt', extra:'📦 Extra Made', returned:'↩️ Returned', other:'❓ Other' }[r] || r;
+}
+function dateShift(ds, off) {
+    var d = new Date(ds + 'T00:00:00');
+    d.setDate(d.getDate() + off);
+    var t = new Date();
+    t.setHours(23, 59, 59, 999);
+    if (d > t) return null;
+    return d.getFullYear() + '-' + S(d.getMonth() + 1) + '-' + S(d.getDate());
+}
+function getDateRange(period) {
+    var today = new Date();
+    today.setHours(0, 0, 0, 0);
+    var sd, ed = todayStr();
+    if (period === 'today') {
+        sd = ed;
+    } else if (period === 'week') {
+        var dy  = today.getDay();
+        var mon = new Date(today);
+        mon.setDate(today.getDate() - (dy === 0 ? 6 : dy - 1));
+        sd = mon.getFullYear() + '-' + S(mon.getMonth() + 1) + '-' + S(mon.getDate());
+    } else if (period === 'month') {
+        sd = today.getFullYear() + '-' + S(today.getMonth() + 1) + '-01';
+    } else if (period === 'year') {
+        sd = today.getFullYear() + '-01-01';
     }
-    function onYes() { cleanup(); resolve(true);  }
-    function onNo()  { cleanup(); resolve(false); }
-    function onKey(e) { if (e.key === 'Escape') { onNo(); } }
-
-    yBtn && yBtn.addEventListener('click', onYes);
-    nBtn && nBtn.addEventListener('click', onNo);
-    document.addEventListener('keydown', onKey);
-
-    _confirmPrevFocus = document.activeElement;
-    d.classList.add('active');
-    d.setAttribute('aria-hidden', 'false');
-    // Focus trap: first button
-    setTimeout(() => yBtn && yBtn.focus(), 50);
-  });
+    return { start: sd, end: ed };
 }
-let _confirmPrevFocus = null;
-
-// Focus trap inside confirm dialog
-document.addEventListener('keydown', (e) => {
-  const d = document.getElementById('confirmDialog');
-  if (!d || !d.classList.contains('active') || e.key !== 'Tab') return;
-  const focusable = d.querySelectorAll('button:not([disabled])');
-  const first = focusable[0], last = focusable[focusable.length - 1];
-  if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
-  else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
-});
-
-// ── Overlay Management ───────────────────────────────────────────────────
-const _overlayStack = [];
-
-export function openOverlay(id, opts = {}) {
-  const el = document.getElementById(id);
-  if (!el) return;
-  el.classList.add('active');
-  el.setAttribute('aria-hidden', 'false');
-  _overlayStack.push({ id, prevFocus: document.activeElement });
-
-  // Focus first focusable element
-  setTimeout(() => {
-    const first = el.querySelector('input:not([type=hidden]), textarea, select, button:not([aria-hidden])');
-    if (first) first.focus();
-  }, 350);
-
-  // Swipe-to-close
-  _addSwipeToClose(el);
+function findInArray(arr, id) {
+    for (var i = 0; i < arr.length; i++) { if (arr[i].id === id) return arr[i]; }
+    return null;
+}
+function isScreenActive(id) {
+    var el = document.getElementById(id);
+    return el && el.classList.contains('active');
+}
+function cleanTimestamp(val) {
+    if (!val) return null;
+    if (typeof val.toDate === 'function') return val.toDate().toISOString();
+    if (val instanceof Date) return val.toISOString();
+    return val;
+}
+function cleanForExport(obj) {
+    var r = {};
+    Object.keys(obj).forEach(function(k) {
+        var cleaned = cleanTimestamp(obj[k]);
+        r[k] = (cleaned !== null) ? cleaned : obj[k];
+    });
+    return r;
+}
+function salesForDate(date)    { return allSales.filter(function(s)   { return s.date === date; }); }
+function expensesForDate(date) { return allExpenses.filter(function(e){ return e.date === date; }); }
+function wasteForDate(date)    { return allWaste.filter(function(w)   { return w.date === date; }); }
+function dataInRange(arr, sd, ed) {
+    return arr.filter(function(x) { return x.date >= sd && x.date <= ed; });
 }
 
-export function closeOverlay(id) {
-  const el = document.getElementById(id);
-  if (!el) return;
-  el.classList.remove('active');
-  el.setAttribute('aria-hidden', 'true');
-  const entry = _overlayStack.findIndex(o => o.id === id);
-  if (entry !== -1) {
-    const { prevFocus } = _overlayStack.splice(entry, 1)[0];
-    if (prevFocus) prevFocus.focus();
-  }
-  // Clear form if present
-  const form = el.querySelector('form');
-  if (form && !opts.keepData) setTimeout(() => form.reset(), 300);
+// Customer advance balance
+function getCustomerAdvance(cid) {
+    var given = 0, paid = 0;
+    allSales.forEach(function(s) {
+        if (s.customerId === cid && s.paymentType === 'credit') given += s.total;
+    });
+    allCreditPayments.forEach(function(p) {
+        if (p.customerId === cid) paid += p.amount;
+    });
+    return paid - given; // positive = customer has advance, negative = customer owes
 }
 
-export function closeTopOverlay() {
-  if (_overlayStack.length) closeOverlay(_overlayStack[_overlayStack.length - 1].id);
+
+// ============ UI HELPERS ============
+
+/**
+ * showToast — duration is automatic based on severity:
+ *   success / info  → 3 000 ms
+ *   warning         → 4 500 ms
+ *   error           → 6 000 ms   (was 2800 — gave users no time to read)
+ */
+function showToast(msg, type) {
+    var t = document.getElementById('toast');
+    if (!t) return;
+    t.textContent = msg;
+    var tc = type || 'success';
+    t.className = 'toast show ' + tc;
+    clearTimeout(t._tm);
+    var duration = tc === 'error' ? 6000 : tc === 'warning' ? 4500 : 3000;
+    t._tm = setTimeout(function() { t.className = 'toast'; }, duration);
 }
 
-// Global ESC key to close top overlay
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && _overlayStack.length) closeTopOverlay();
-});
-
-// ── Swipe-to-Close ───────────────────────────────────────────────────────
-function _addSwipeToClose(el) {
-  const sheet = el.querySelector('.overlay-sheet, .sheet');
-  if (!sheet || sheet._swipeInitialised) return;
-  sheet._swipeInitialised = true;
-
-  let startY = 0, isDragging = false;
-
-  sheet.addEventListener('touchstart', (e) => {
-    const handle = sheet.querySelector('.sheet-handle');
-    if (!handle || !handle.contains(e.target)) return;
-    startY = e.touches[0].clientY;
-    isDragging = true;
-    sheet.style.transition = 'none';
-  }, { passive: true });
-
-  sheet.addEventListener('touchmove', (e) => {
-    if (!isDragging) return;
-    const dy = Math.max(0, e.touches[0].clientY - startY);
-    sheet.style.transform = `translateY(${dy}px)`;
-  }, { passive: true });
-
-  sheet.addEventListener('touchend', (e) => {
-    if (!isDragging) return;
-    isDragging = false;
-    sheet.style.transition = '';
-    const dy = e.changedTouches[0].clientY - startY;
-    if (dy > 80) {
-      sheet.style.transform = '';
-      closeOverlay(el.id);
+function btnLoading(btn, loading) {
+    if (!btn) return;
+    if (loading) {
+        btn.disabled = true;
+        btn.classList.add('loading');
+        btn._origText = btn.textContent;
     } else {
-      sheet.style.transform = '';
+        btn.disabled = false;
+        btn.classList.remove('loading');
+        if (btn._origText) btn.textContent = btn._origText;
     }
-  });
+}
+function canModify() { return userRole !== 'staff'; }
+function actionBtns(editFn, delFn) {
+    if (!canModify()) return '';
+    return '<div class="sl-acts">' +
+        '<button class="ic-btn ib-e" onclick="' + editFn + '" aria-label="Edit">✏️</button>' +
+        '<button class="ic-btn ib-d" onclick="' + delFn + '" aria-label="Delete">🗑️</button>' +
+        '</div>';
 }
 
-// ── Field Validation Helpers ─────────────────────────────────────────────
-export function setFieldError(inputId, msg) {
-  const input = document.getElementById(inputId);
-  if (!input) return;
-  input.classList.add('field--error');
-  let errEl = input.parentElement.querySelector('.field-error-msg');
-  if (!errEl) {
-    errEl = document.createElement('div');
-    errEl.className = 'field-error-msg';
-    errEl.setAttribute('aria-live', 'polite');
-    input.parentElement.appendChild(errEl);
-  }
-  errEl.textContent = msg;
-  // Clear on next input
-  input.addEventListener('input', () => clearFieldError(inputId), { once: true });
+
+// ============ THEME ============
+function applyTheme() {
+    var theme = currentTheme;
+    if (theme === 'auto') {
+        document.documentElement.setAttribute('data-theme',
+            window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    } else {
+        document.documentElement.setAttribute('data-theme', theme);
+    }
+    updateThemeUI();
+    if (isScreenActive('reportScreen') && rptData.sd && rptData.ed) {
+        setTimeout(function() { if (typeof renderCharts === 'function') renderCharts(rptData.sd, rptData.ed); }, 150);
+    }
 }
-
-export function clearFieldError(inputId) {
-  const input = document.getElementById(inputId);
-  if (!input) return;
-  input.classList.remove('field--error');
-  const errEl = input.parentElement?.querySelector('.field-error-msg');
-  if (errEl) errEl.textContent = '';
+function cycleTheme() {
+    if (currentTheme === 'auto')        currentTheme = 'light';
+    else if (currentTheme === 'light')  currentTheme = 'dark';
+    else                                currentTheme = 'auto';
+    localStorage.setItem('mdTheme', currentTheme);
+    applyTheme();
+    showToast('🎨 Theme: ' + currentTheme.charAt(0).toUpperCase() + currentTheme.slice(1));
 }
-
-export function clearAllFieldErrors(formId) {
-  const form = document.getElementById(formId);
-  if (!form) return;
-  form.querySelectorAll('.field--error').forEach(el => el.classList.remove('field--error'));
-  form.querySelectorAll('.field-error-msg').forEach(el => el.textContent = '');
+function updateThemeUI() {
+    var icon  = currentTheme === 'dark' ? '☀️' : currentTheme === 'light' ? '🌙' : '📱';
+    var label = currentTheme === 'auto' ? 'System Default' : currentTheme === 'dark' ? 'Dark Mode' : 'Light Mode';
+    var el;
+    el = document.getElementById('themeTogBtn');    if (el) el.textContent = icon;
+    el = document.getElementById('setThemeIc');     if (el) el.textContent = icon;
+    el = document.getElementById('setThemeLabel');  if (el) el.textContent = label;
+    el = document.getElementById('setThemeBadge');  if (el) el.textContent = currentTheme.charAt(0).toUpperCase() + currentTheme.slice(1);
 }
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function() {
+    if (currentTheme === 'auto') applyTheme();
+});
+applyTheme();
 
-// ── Button Loading State ─────────────────────────────────────────────────
-export function btnLoading(btn, loading, loadingText) {
-  if (!btn) return;
-  if (loading) {
-    btn.dataset.origText = btn.textContent;
-    btn.textContent = loadingText || t('saving');
-    btn.disabled = true;
-    btn.setAttribute('aria-busy', 'true');
-  } else {
-    btn.textContent = btn.dataset.origText || btn.textContent;
-    btn.disabled = false;
-    btn.removeAttribute('aria-busy');
-  }
+
+// ============ CONFIRM DIALOG ============
+function showConfirm(ic, tt, msg, fn) {
+    document.getElementById('confirmIcon').textContent  = ic;
+    document.getElementById('confirmTitle').textContent = tt;
+    document.getElementById('confirmMsg').textContent   = msg;
+    cfCb = fn;
+    document.getElementById('confirmDialog').classList.add('active');
+    setTimeout(function() { var b = document.querySelector('.m-no'); if (b) b.focus(); }, 100);
 }
-
-// ── Skeleton Loaders ─────────────────────────────────────────────────────
-export function showSkeletons(containerId, count = 3) {
-  const el = document.getElementById(containerId);
-  if (!el) return;
-  el.innerHTML = Array.from({ length: count }, () =>
-    '<div class="skeleton-card"><div class="sk-line sk-line--title"></div>' +
-    '<div class="sk-line sk-line--body"></div>' +
-    '<div class="sk-line sk-line--short"></div></div>'
-  ).join('');
+function hideConfirm() {
+    document.getElementById('confirmDialog').classList.remove('active');
+    cfCb = null;
 }
+function onConfirmYes() { if (cfCb) cfCb(); hideConfirm(); }
 
-// ── Date Utilities ───────────────────────────────────────────────────────
-export function todayStr() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-}
 
-export function toDateObj(str) {
-  if (!str || typeof str !== 'string') return null;
-  const parts = str.split('-');
-  if (parts.length !== 3) return null;
-  const d = new Date(parseInt(parts[0]), parseInt(parts[1])-1, parseInt(parts[2]));
-  return isNaN(d.getTime()) ? null : d;
-}
-
-export function fmtDate(str) {
-  if (!str) return '';
-  const d = toDateObj(str);
-  if (!d) return str;
-  return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
-}
-
-export function fmtDateLong(str) {
-  if (!str) return '';
-  const d = toDateObj(str);
-  if (!d) return str;
-  return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-}
-
-export function fmtRelativeDate(str) {
-  if (!str) return '';
-  const d = toDateObj(str);
-  if (!d) return str;
-  const today  = new Date(); today.setHours(0,0,0,0);
-  const target = new Date(d); target.setHours(0,0,0,0);
-  const diff   = Math.round((today - target) / 86400000);
-  if (diff === 0) return 'Today';
-  if (diff === 1) return 'Yesterday';
-  if (diff  <  7) return `${diff} days ago`;
-  if (diff  < 30) return `${Math.round(diff/7)} weeks ago`;
-  if (diff  < 365)return `${Math.round(diff/30)} months ago`;
-  return fmtDateLong(str);
-}
-
-export function daysBetween(strA, strB) {
-  const a = toDateObj(strA), b = toDateObj(strB);
-  if (!a || !b) return 0;
-  return Math.round(Math.abs((b - a) / 86400000));
-}
-
-export function dataInRange(items, startDate, endDate) {
-  return items.filter(x => {
-    if (!x.date || typeof x.date !== 'string') return false;
-    return x.date >= startDate && x.date <= endDate;
-  });
-}
-
-export function getPeriodRange(type, refDate, weekStart = 1) {
-  const d   = refDate ? toDateObj(refDate) : new Date();
-  const pad = (n) => String(n).padStart(2, '0');
-  const fmt = (dt) => `${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())}`;
-
-  if (type === 'daily') {
-    const s = fmt(d);
-    return { start: s, end: s };
-  }
-  if (type === 'weekly') {
-    const day = d.getDay();
-    const diff = (day - weekStart + 7) % 7;
-    const mon  = new Date(d); mon.setDate(d.getDate() - diff);
-    const sun  = new Date(mon); sun.setDate(mon.getDate() + 6);
-    return { start: fmt(mon), end: fmt(sun) };
-  }
-  if (type === 'monthly') {
-    const s = new Date(d.getFullYear(), d.getMonth(), 1);
-    const e = new Date(d.getFullYear(), d.getMonth() + 1, 0);
-    return { start: fmt(s), end: fmt(e) };
-  }
-  if (type === 'yearly') {
-    return {
-      start: `${d.getFullYear()}-01-01`,
-      end:   `${d.getFullYear()}-12-31`
+// ============ DEBOUNCE ============
+function debounce(fn, delay) {
+    var timer;
+    return function() {
+        var args = arguments, ctx = this;
+        clearTimeout(timer);
+        timer = setTimeout(function() { fn.apply(ctx, args); }, delay || 300);
     };
-  }
-  return null;
 }
 
-// ── Number / Currency Formatters ─────────────────────────────────────────
-export function fmtCurrency(n, decimals = 0) {
-  if (isNaN(n)) return '₹0';
-  return '₹' + Number(n).toLocaleString('en-IN', {
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals
-  });
+
+// ============ DASHBOARD REFRESH — DEBOUNCED ============
+/**
+ * FIX: Five Firestore listeners (customers, sales, expenses, waste, creditPayments)
+ * all called refreshDash() independently on startup, causing the "Today's Activity"
+ * section to render 3 times in rapid succession.
+ *
+ * requestDashRefresh() coalesces all listener-triggered refreshes into a single
+ * call 80ms after the LAST listener fires. Listeners call this instead of refreshDash().
+ */
+var _dashRefreshTimer = null;
+function requestDashRefresh() {
+    clearTimeout(_dashRefreshTimer);
+    _dashRefreshTimer = setTimeout(function() {
+        if (isScreenActive('dashboardScreen') && typeof refreshDash === 'function') {
+            refreshDash();
+        }
+    }, 80);
 }
 
-export function fmtNumber(n) {
-  if (isNaN(n)) return '0';
-  return Number(n).toLocaleString('en-IN');
-}
 
-// ── HTML Escaping ────────────────────────────────────────────────────────
-export function esc(str) {
-  if (str === null || str === undefined) return '';
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
-}
-
-// ── Array Utilities ──────────────────────────────────────────────────────
-export function findById(arr, id) {
-  return arr.find(x => x.id === id) || null;
-}
-
-// ── Debounce ─────────────────────────────────────────────────────────────
-export function debounce(fn, delay) {
-  let timer;
-  return (...args) => {
-    clearTimeout(timer);
-    timer = setTimeout(() => fn(...args), delay);
-  };
-}
-
-// ── Retry with Exponential Backoff ───────────────────────────────────────
-export async function withRetry(fn, maxAttempts = 3) {
-  let lastErr;
-  for (let i = 0; i < maxAttempts; i++) {
-    try { return await fn(); }
-    catch (err) {
-      lastErr = err;
-      if (err.code === 'permission-denied' || err.code === 'unauthenticated') throw err; // don't retry auth errors
-      if (err.code === 'resource-exhausted') { showToast(t('quota_exceeded'), 'error', 5000); throw err; }
-      if (i < maxAttempts - 1) await new Promise(r => setTimeout(r, 500 * Math.pow(2, i)));
-    }
-  }
-  throw lastErr;
-}
-
-// ── Greeting based on time ───────────────────────────────────────────────
-export function getGreeting(name) {
-  const h = new Date().getHours();
-  if (h < 12) return t('good_morning', name);
-  if (h < 18) return t('good_afternoon', name);
-  return t('good_evening', name);
-}
-
-// ── SHA-256 (for PIN hashing) ────────────────────────────────────────────
-export async function sha256(str) {
-  const buf  = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
-  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
-}
-
-// ── WhatsApp link builder ────────────────────────────────────────────────
-export function buildWhatsAppLink(phone, message) {
-  const cleaned = String(phone || '').replace(/\D/g, '');
-  const num     = cleaned.startsWith('91') ? cleaned : `91${cleaned}`;
-  return `https://wa.me/${num}?text=${encodeURIComponent(message)}`;
-}
-
-// ── UPI deep link builder ────────────────────────────────────────────────
-export function buildUpiLink(vpa, name, amount, note = 'Roti payment') {
-  const params = new URLSearchParams({
-    pa: vpa, pn: name, am: String(amount), tn: note, cu: 'INR'
-  });
-  return `upi://pay?${params.toString()}`;
-}
-
-// ── navigator.share() wrapper ────────────────────────────────────────────
-export async function shareContent({ title, text, url, files }) {
-  if (navigator.share) {
+// ============ PIN SECURITY — SHA-256 ============
+/**
+ * FIX: Previous version used btoa() which is Base64 encoding (NOT encryption).
+ * Anyone with DevTools could run atob(localStorage.getItem('mdPin')) to get the PIN.
+ *
+ * hashPin() uses Web Crypto API SHA-256 with a per-business salt.
+ * The hash is non-reversible — no one can extract the original PIN from it.
+ *
+ * Fallback: if Web Crypto unavailable (very old browser), falls back to btoa
+ * and logs a warning. This maintains functionality while signalling the issue.
+ */
+async function hashPin(pin, salt) {
     try {
-      if (files && navigator.canShare && navigator.canShare({ files })) {
-        await navigator.share({ title, text, files });
-      } else {
-        await navigator.share({ title, text, url });
-      }
-      return true;
-    } catch(e) {
-      if (e.name !== 'AbortError') console.warn('[share]', e);
-      return false;
+        if (!crypto || !crypto.subtle) throw new Error('Web Crypto not available');
+        var encoder = new TextEncoder();
+        // Combine pin + separator + salt for uniqueness across businesses
+        var data = encoder.encode(pin + ':md-v2:' + (salt || 'default'));
+        var hashBuffer = await crypto.subtle.digest('SHA-256', data);
+        var hashArray  = Array.from(new Uint8Array(hashBuffer));
+        return hashArray.map(function(b) { return b.toString(16).padStart(2, '0'); }).join('');
+    } catch (err) {
+        console.warn('[PIN] Web Crypto unavailable, using fallback:', err.message);
+        // Fallback: still better than plain btoa but should not happen on modern devices
+        return btoa(pin + ':' + (salt || 'default'));
     }
-  }
-  // Fallback: copy to clipboard
-  const content = text || url || '';
-  if (navigator.clipboard) {
-    await navigator.clipboard.writeText(content);
-    showToast(t('note_copied'));
-  }
-  return false;
 }
 
-// ── Online / Offline status ──────────────────────────────────────────────
-import { setState } from './state.js';
 
-window.addEventListener('online',  () => {
-  setState({ isOnline: true });
-  showToast(t('synced'), 'success');
-  document.getElementById('offlineBanner')?.classList.remove('visible');
+// ============ ERROR BOUNDARIES ============
+window.addEventListener('error', function(e) {
+    console.error('[GlobalError]', e.message, e.lineno);
+    // Ignore errors from CDN scripts
+    if (e.filename && (
+        e.filename.indexOf('cdn') !== -1 ||
+        e.filename.indexOf('cdnjs') !== -1 ||
+        e.filename.indexOf('gstatic') !== -1
+    )) return;
+    if (typeof showToast === 'function') showToast('⚠️ Something went wrong — please refresh', 'error');
 });
-window.addEventListener('offline', () => {
-  setState({ isOnline: false });
-  showToast(t('offline_banner'), 'warning', 4000);
-  document.getElementById('offlineBanner')?.classList.add('visible');
+window.addEventListener('unhandledrejection', function(e) {
+    console.error('[UnhandledPromise]', e.reason);
+    // Suppress expected offline/network errors from Firestore
+    if (e.reason && e.reason.code) {
+        var code = e.reason.code;
+        if (code.indexOf('unavailable') !== -1 ||
+            code.indexOf('network')     !== -1 ||
+            code.indexOf('offline')     !== -1) return;
+    }
 });
 
-// ── Animation helper ─────────────────────────────────────────────────────
-export function animateCounter(el, from, to, duration = 400) {
-  if (!el) return;
-  const start = performance.now();
-  const update = (now) => {
-    const progress = Math.min((now - start) / duration, 1);
-    const ease     = 1 - Math.pow(1 - progress, 3); // ease-out cubic
-    const value    = Math.round(from + (to - from) * ease);
-    el.textContent = value.toLocaleString('en-IN');
-    if (progress < 1) requestAnimationFrame(update);
-    else el.textContent = to.toLocaleString('en-IN');
-  };
-  requestAnimationFrame(update);
+
+// ============ SKELETON LOADER ============
+function showSkeletons(containerId, count) {
+    var ct = document.getElementById(containerId);
+    if (!ct) return;
+    var h = '';
+    for (var i = 0; i < (count || 3); i++) {
+        h += '<div class="skel-card" style="animation-delay:' + (i * 0.08) + 's">';
+        h += '<div style="display:flex;gap:12px;align-items:center;margin-bottom:10px">';
+        h += '<div class="skel" style="width:42px;height:42px;border-radius:12px;flex-shrink:0"></div>';
+        h += '<div style="flex:1"><div class="skel skel-line med"></div>';
+        h += '<div class="skel skel-line short" style="margin-top:6px"></div></div></div>';
+        h += '<div class="skel skel-line full"></div></div>';
+    }
+    ct.innerHTML = h;
 }
 
-console.log('[core] Meri Dukaan v8.0 — core utilities ready');
+
+// ============ PWA INSTALL BANNER ============
+window.addEventListener('beforeinstallprompt', function(e) {
+    e.preventDefault();
+    deferredInstallPrompt = e;
+    var dismissed  = parseInt(localStorage.getItem('pwaInstallDismissed') || '0', 10);
+    var threeDays  = 3 * 24 * 60 * 60 * 1000;
+    if (!localStorage.getItem('pwaInstalled') && (Date.now() - dismissed) > threeDays) {
+        setTimeout(showInstallBanner, 4000);
+    }
+});
+window.addEventListener('appinstalled', function() {
+    localStorage.setItem('pwaInstalled', '1');
+    hideInstallBanner();
+    showToast('🎉 App installed! Find it on your home screen.');
+});
+function showInstallBanner() {
+    var banner = document.getElementById('installBanner');
+    if (banner && deferredInstallPrompt) banner.classList.add('show');
+}
+function hideInstallBanner() {
+    var banner = document.getElementById('installBanner');
+    if (banner) {
+        banner.classList.remove('show');
+        localStorage.setItem('pwaInstallDismissed', Date.now().toString());
+    }
+}
+async function triggerInstall() {
+    if (!deferredInstallPrompt) { showToast('Install from your browser menu', 'error'); return; }
+    hideInstallBanner();
+    deferredInstallPrompt.prompt();
+    var result = await deferredInstallPrompt.userChoice;
+    if (result.outcome === 'accepted') localStorage.setItem('pwaInstalled', '1');
+    deferredInstallPrompt = null;
+}
+
+console.log('[Core] Meri Dukaan v7.0 — Core loaded');
