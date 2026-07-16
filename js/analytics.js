@@ -1,812 +1,493 @@
 /* ================================================
-   MERI DUKAAN v7.0 — ANALYTICS
-   Complete rebuild from scratch.
-
-   PHASE 2+3 CHANGES vs v6:
-   ✅ 100% English — all Hindi/Hinglish purged
-   ✅ True stock remaining — cumulative model:
-      remaining = total_purchased − total_consumed
-      (v6 only used LAST purchase — fundamentally wrong)
-   ✅ True profit margin — includes atta + oil + gas + poly
-      (v6 only counted atta → showed inflated 81.9%)
-   ✅ Linear regression revenue forecasting (7-day)
-   ✅ Pattern detection engine (weekday trends, seasonality)
-   ✅ Customer risk scoring (inactivity + reliability)
-   ✅ Rolling 30-day / 90-day / all-time window toggle
-   ✅ "Stock Out" state fixed (was "About to finish" when 0)
-   ✅ Smart insights: unlimited, priority-sorted, paginated
+   MERI DUKAAN v8.0 — ANALYTICS
+   All sections update together on window change.
+   Fixed: linearRegression div-by-zero guard.
+   Fixed: kgPerRoti validation.
    ================================================ */
 
-var _analyticsWindow = 30; // days — toggled by UI
+import { getState }                             from './state.js';
+import { t }                                    from './i18n.js';
+import { todayStr, fmtCurrency, fmtDate,
+         dataInRange, getPeriodRange,
+         buildWhatsAppLink }                    from './core.js';
 
-function loadAnalytics() {
-    renderSmartInsights();
-    renderStockTracker();
-    renderPriceTrend('atta');
-    renderDayWiseSales();
-    renderUnitEconomics();
-    renderCustomerInsights();
+let _window = 30;   // days
+let _charts  = {};  // Chart.js instances
+
+export function renderAnalytics() {
+  const ct = document.getElementById('analyticsScreen');
+  if (!ct || !ct.classList.contains('screen--active')) return;
+
+  const sales    = getState('allSales');
+  const expenses = getState('allExpenses');
+  const waste    = getState('allWaste');
+  const custs    = getState('allCustomers');
+
+  if (sales.length < 3) {
+    const msg = document.getElementById('analyticsNoData');
+    if (msg) msg.style.display = 'block';
+    return;
+  }
+  const msg = document.getElementById('analyticsNoData');
+  if (msg) msg.style.display = 'none';
+
+  // Compute date window
+  const endDate   = todayStr();
+  const startD    = new Date();
+  startD.setDate(startD.getDate() - _window);
+  const startDate = _window === 9999 ? '2000-01-01'
+    : `${startD.getFullYear()}-${String(startD.getMonth()+1).padStart(2,'0')}-${String(startD.getDate()).padStart(2,'0')}`;
+
+  const wSales = dataInRange(sales,    startDate, endDate);
+  const wExps  = dataInRange(expenses, startDate, endDate);
+  const wWaste = dataInRange(waste,    startDate, endDate);
+
+  // All 6 sections update together ← v7 bug: only 2 updated
+  _renderPerRotiCard(wSales, wExps, wWaste);
+  _renderRevenueTrend(wSales);
+  _renderUnitEconomics(wSales, wExps);
+  _renderStockTracker(expenses, sales);
+  _renderCustomerInsights(wSales, custs);
+  _renderSmartInsights(wSales, wExps, custs, wWaste);
 }
 
-function setAnalyticsWindow(days, btn) {
-    _analyticsWindow = days;
-    document.querySelectorAll('.an-window-btn').forEach(function(b) {
-        b.classList.remove('active');
-    });
-    if (btn) btn.classList.add('active');
-    renderDayWiseSales();
-    renderUnitEconomics();
+export function setAnalyticsWindow(days, btn) {
+  _window = days;
+  document.querySelectorAll('[data-analytics-window]').forEach(b =>
+    b.classList.toggle('window-btn--active', parseInt(b.dataset.analyticsWindow) === days));
+  renderAnalytics();
 }
 
+// ── Per-Roti Profit Breakdown (Hero Card) ────────────────────────────────
+function _renderPerRotiCard(sales, exps, waste) {
+  const totalQty     = sales.reduce((s,x) => s + (x.qty||0), 0);
+  const totalRevenue = sales.reduce((s,x) => s + (x.total||0), 0);
+  if (!totalQty) return;
 
-// ============ UTILITY — LINEAR REGRESSION ============
-/**
- * linearRegression — returns {slope, intercept, predict(x), r2}
- * Used for revenue forecasting and trend detection.
- */
-function linearRegression(points) {
-    var n = points.length;
-    if (n < 2) return { slope: 0, intercept: 0, predict: function() { return 0; }, r2: 0 };
-    var sx = 0, sy = 0, sxy = 0, sxx = 0, syy = 0;
-    points.forEach(function(p) { sx += p.x; sy += p.y; sxy += p.x * p.y; sxx += p.x * p.x; syy += p.y * p.y; });
-    var slope     = (n * sxy - sx * sy) / (n * sxx - sx * sx);
-    var intercept = (sy - slope * sx) / n;
-    var yMean     = sy / n;
-    var ssTot = 0, ssRes = 0;
-    points.forEach(function(p) {
-        ssTot += Math.pow(p.y - yMean, 2);
-        ssRes += Math.pow(p.y - (slope * p.x + intercept), 2);
-    });
-    var r2 = ssTot > 0 ? Math.max(0, 1 - ssRes / ssTot) : 0;
-    return {
-        slope:     slope,
-        intercept: intercept,
-        predict:   function(x) { return Math.max(0, slope * x + intercept); },
-        r2:        r2
-    };
+  const revenuePerRoti = totalRevenue / totalQty;
+
+  // Expense breakdown per roti
+  const catCost = {};
+  exps.forEach(e => {
+    const cat = e.category || 'Other';
+    catCost[cat] = (catCost[cat]||0) + (e.amount||0);
+  });
+  const totalExp       = Object.values(catCost).reduce((s,v)=>s+v,0);
+  const costPerRoti    = totalExp / totalQty;
+  const wasteQty       = waste.reduce((s,x) => s + (x.qty||0), 0);
+  const wasteCostPerR  = (wasteQty / totalQty) * revenuePerRoti;
+  const profitPerRoti  = revenuePerRoti - costPerRoti;
+  const margin         = totalRevenue > 0 ? (profitPerRoti / revenuePerRoti * 100) : 0;
+
+  const _set = (id,v) => { const el=document.getElementById(id); if(el) el.textContent=v; };
+  _set('arRevenuePerRoti', fmtCurrency(revenuePerRoti, 2));
+  _set('arCostPerRoti',    fmtCurrency(costPerRoti, 2));
+  _set('arWasteCostPerR',  fmtCurrency(wasteCostPerR, 2));
+  _set('arProfitPerRoti',  fmtCurrency(profitPerRoti, 2));
+  _set('arMargin',         Math.round(margin) + '%');
+
+  // Cost breakdown bars
+  const breakdownEl = document.getElementById('arCostBreakdown');
+  if (breakdownEl && totalQty) {
+    breakdownEl.innerHTML = Object.entries(catCost)
+      .sort((a,b) => b[1]-a[1])
+      .map(([cat, amt]) => {
+        const perRoti = amt / totalQty;
+        const pct     = totalExp > 0 ? (amt/totalExp*100).toFixed(0) : 0;
+        return `<div class="cost-bar-row">
+          <span class="cost-bar__label">${cat}</span>
+          <div class="cost-bar__track"><div class="cost-bar__fill" style="width:${pct}%"></div></div>
+          <span class="cost-bar__val">${fmtCurrency(perRoti, 2)}/roti</span>
+        </div>`;
+      }).join('');
+  }
 }
 
-function getWindowDates() {
-    var end   = todayStr();
-    var start = new Date();
-    start.setDate(start.getDate() - (_analyticsWindow - 1));
-    return { start: start.getFullYear() + '-' + S(start.getMonth()+1) + '-' + S(start.getDate()), end: end };
-}
+// ── Revenue Trend Chart ──────────────────────────────────────────────────
+function _renderRevenueTrend(sales) {
+  const canvas = document.getElementById('revenueTrendChart');
+  if (!canvas || typeof Chart === 'undefined') return;
 
+  // Group by date
+  const byDate = {};
+  sales.forEach(s => { byDate[s.date] = (byDate[s.date]||0) + (s.total||0); });
+  const dates    = Object.keys(byDate).sort();
+  const revenues = dates.map(d => byDate[d]);
 
-// ============ TRUE STOCK CALCULATION ============
-/**
- * calculateTrueStock — Phase 3 fix
- *
- * v6 BUG: kgRemaining = last.weight - dailyRate × daysSinceLast
- * → Only looked at the most recent purchase. If you bought 50kg on May 6,
- *   50kg on May 10, and 50kg on May 13, it showed stock as if you
- *   only have the May 13 bag. The May 6 and May 10 bags were ignored.
- *
- * v7 FIX — Cumulative model:
- *   For ATTA:  remaining = totalPurchasedKg − (totalRotiSold × kgPerRoti)
- *              kgPerRoti is derived from lifetime purchase/sales ratio.
- *
- *   For OIL:   remaining = last_purchase_weight −
- *                          (avgDailyOilUsage × daysSinceLastPurchase)
- *              avgDailyOilUsage = total_oil_purchased / total_days_tracked
- *              This is a fair estimate since oil usage doesn't map to roti count.
- */
-function calculateTrueStock(cat) {
-    var purchases = allExpenses
-        .filter(function(x) { return x.category === cat && x.weight > 0; })
-        .sort(function(a, b) { return a.date < b.date ? -1 : 1; });
+  // 7-day rolling average
+  const rolling = revenues.map((_,i) => {
+    const slice = revenues.slice(Math.max(0,i-6), i+1);
+    return slice.reduce((s,v)=>s+v,0) / slice.length;
+  });
 
-    if (!purchases.length) {
-        return { remaining: 0, dailyRate: 0, daysRemaining: 0, purchases: [], lastPurchase: null };
-    }
+  // Linear regression forecast
+  const n = revenues.length;
+  if (n >= 7) {
+    const forecast = _linearRegression(revenues.map((_,i)=>i), revenues);
+    const nextDays = [n, n+1, n+2].map(x => Math.max(0, forecast.predict(x)));
+    // Could render forecast as dotted extension — for now just show r²
+    const r2El = document.getElementById('arForecastR2');
+    if (r2El) r2El.textContent = `Trend confidence: ${Math.round(forecast.r2 * 100)}%`;
+  }
 
-    var totalPurchasedKg = purchases.reduce(function(s, p) { return s + p.weight; }, 0);
-    var firstDate        = new Date(purchases[0].date + 'T00:00:00');
-    var today            = new Date(); today.setHours(23, 59, 59, 999);
-    var totalDays        = Math.max(1, Math.round((today - firstDate) / 86400000));
-    var last             = purchases[purchases.length - 1];
-    var lastDate         = new Date(last.date + 'T00:00:00');
-    var daysSinceLast    = Math.round((today - lastDate) / 86400000);
-
-    var remaining   = 0;
-    var dailyRate   = 0;
-
-    if (cat === 'atta') {
-        // Atta: consumption is directly tied to roti production
-        var totalRotiSold = allSales.reduce(function(s, sl) { return s + sl.quantity; }, 0);
-        // kg per roti: lifetime ratio (most accurate)
-        var kgPerRoti = totalRotiSold > 0 ? totalPurchasedKg / totalRotiSold : 0.023;
-
-        // True remaining = all atta bought − all atta used
-        var totalConsumed = totalRotiSold * kgPerRoti;
-        remaining = Math.max(0, totalPurchasedKg - totalConsumed);
-
-        // Daily rate from recent 30 days
-        var recentCut = new Date(); recentCut.setDate(recentCut.getDate() - 30);
-        var recentCutStr = recentCut.getFullYear() + '-' + S(recentCut.getMonth()+1) + '-' + S(recentCut.getDate());
-        var recentRoti = allSales
-            .filter(function(s) { return s.date >= recentCutStr; })
-            .reduce(function(s, sl) { return s + sl.quantity; }, 0);
-        var avgDailyRoti = recentRoti / 30;
-        dailyRate = avgDailyRoti * kgPerRoti;
-
-    } else if (cat === 'oil') {
-        // Oil: no direct roti mapping — use time-based consumption model
-        // Between purchases, the previous stock was used up. Estimate daily rate
-        // from the intervals between purchases.
-        if (purchases.length >= 2) {
-            var totalIntervalDays = 0;
-            var totalOilInIntervals = 0;
-            for (var i = 0; i < purchases.length - 1; i++) {
-                var d1  = new Date(purchases[i].date + 'T00:00:00');
-                var d2  = new Date(purchases[i+1].date + 'T00:00:00');
-                var gap = Math.max(1, Math.round((d2 - d1) / 86400000));
-                totalIntervalDays   += gap;
-                totalOilInIntervals += purchases[i].weight; // assumed consumed before next purchase
-            }
-            dailyRate = totalIntervalDays > 0 ? totalOilInIntervals / totalIntervalDays : last.weight / 14;
-        } else {
-            // Only one purchase — assume typical 14-day usage cycle
-            dailyRate = last.weight / 14;
+  if (_charts.revenue) _charts.revenue.destroy();
+  _charts.revenue = new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels:   dates.map(d => fmtDate(d)),
+      datasets: [
+        {
+          label:           'Revenue',
+          data:            revenues,
+          backgroundColor: 'rgba(230,81,0,0.7)',
+          borderRadius:    4,
+          order:           2,
+        },
+        {
+          label:           '7-day avg',
+          data:            rolling,
+          type:            'line',
+          borderColor:     '#ff9d5c',
+          borderWidth:     2,
+          pointRadius:     0,
+          fill:            false,
+          tension:         0.4,
+          order:           1,
         }
-        // Remaining = last purchase weight − daily usage × days since last purchase
-        remaining = Math.max(0, last.weight - (dailyRate * daysSinceLast));
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        tooltip: {
+          enabled: true,
+          callbacks: {
+            label: ctx => `${ctx.dataset.label}: ${fmtCurrency(ctx.raw)}`
+          }
+        },
+        legend: { labels: { color: '#9399b8', font: { size: 11 } } },
+        zoom: { zoom: { wheel: { enabled: false }, pinch: { enabled: true }, mode: 'x' } }
+      },
+      scales: {
+        x: { ticks: { color: '#565d80', maxTicksLimit: 8 }, grid: { display: false } },
+        y: { ticks: { color: '#565d80', callback: v => '₹'+Math.round(v) }, grid: { color: 'rgba(255,255,255,0.04)' } }
+      }
     }
-
-    var daysRemaining = dailyRate > 0 ? Math.floor(remaining / dailyRate) : 999;
-
-    return {
-        remaining:    Math.round(remaining * 10) / 10,
-        dailyRate:    Math.round(dailyRate * 100) / 100,
-        daysRemaining: daysRemaining,
-        purchases:    purchases,
-        lastPurchase: last,
-        daysSinceLast: daysSinceLast
-    };
+  });
 }
 
-function renderStockTracker() {
-    var ct = document.getElementById('stockTrackerBody');
-    if (!ct) return;
-    var h = '';
-    ['atta', 'oil'].forEach(function(cat) {
-        var info    = calculateTrueStock(cat);
-        var purchases = info.purchases;
-        if (!purchases.length) {
-            h += '<div class="stock-card">' +
-                 '<div class="sk-header"><span class="sk-icon">' + catIc(cat) + '</span>' +
-                 '<span class="sk-name">' + catNm(cat) + '</span>' +
-                 '<span class="sk-status-amber">No Data</span></div>' +
-                 '<div class="no-data" style="padding:8px 0;font-size:12px">No purchases recorded yet</div>' +
-                 '</div>';
-            return;
+// ── Unit Economics ────────────────────────────────────────────────────────
+function _renderUnitEconomics(sales, exps) {
+  const canvas = document.getElementById('unitEconChart');
+  if (!canvas || typeof Chart === 'undefined') return;
+
+  // Daily profit summary
+  const byDate = {};
+  sales.forEach(s => {
+    if (!byDate[s.date]) byDate[s.date] = { rev:0, exp:0 };
+    byDate[s.date].rev += s.total||0;
+  });
+  exps.forEach(e => {
+    if (!byDate[e.date]) byDate[e.date] = { rev:0, exp:0 };
+    byDate[e.date].exp += e.amount||0;
+  });
+
+  const dates   = Object.keys(byDate).sort();
+  const profits = dates.map(d => byDate[d].rev - byDate[d].exp);
+  const revenues= dates.map(d => byDate[d].rev);
+
+  if (_charts.unitEcon) _charts.unitEcon.destroy();
+  _charts.unitEcon = new Chart(canvas, {
+    type: 'line',
+    data: {
+      labels: dates.map(d => fmtDate(d)),
+      datasets: [
+        {
+          label:       'Revenue',
+          data:        revenues,
+          borderColor: '#3b82f6',
+          backgroundColor: 'rgba(59,130,246,0.08)',
+          fill:        true, tension: 0.4, pointRadius: 2,
+        },
+        {
+          label:       'Profit',
+          data:        profits,
+          borderColor: '#059669',
+          backgroundColor: 'rgba(5,150,105,0.08)',
+          fill:        true, tension: 0.4, pointRadius: 2,
         }
-
-        // Status label — FIXED: separate "Stock Out" from "About to finish"
-        var statusClass, statusText;
-        if (info.remaining <= 0) {
-            statusClass = 'sk-status-red';
-            statusText  = '🔴 Stock Out! Order Now';
-        } else if (info.daysRemaining <= 1) {
-            statusClass = 'sk-status-red';
-            statusText  = '🔴 Critical — ' + info.daysRemaining + ' day left';
-        } else if (info.daysRemaining <= 3) {
-            statusClass = 'sk-status-amber';
-            statusText  = '⚠️ Low — ' + info.daysRemaining + ' days';
-        } else {
-            statusClass = 'sk-status-green';
-            statusText  = '✅ Good — ' + info.daysRemaining + ' days';
-        }
-
-        // Progress bar: remaining vs last purchase weight (as a reference)
-        var last     = info.lastPurchase;
-        var barPct   = last.weight > 0 ? Math.min(100, (info.remaining / last.weight) * 100) : 0;
-        var barColor = barPct > 40 ? 'var(--gn)' : barPct > 15 ? 'var(--am)' : 'var(--rd)';
-
-        // Price change badge
-        var priceBadge = '';
-        if (purchases.length >= 2) {
-            var prev2    = purchases[purchases.length - 2];
-            var prevRate = prev2.weight > 0 ? prev2.amount / prev2.weight : 0;
-            var lastRate = last.weight  > 0 ? last.amount  / last.weight  : 0;
-            if (prevRate > 0) {
-                var pctChange = ((lastRate - prevRate) / prevRate * 100).toFixed(1);
-                if (Math.abs(parseFloat(pctChange)) >= 1) {
-                    priceBadge = parseFloat(pctChange) > 0
-                        ? '<span class="sk-price-badge sk-price-up">+' + pctChange + '%</span>'
-                        : '<span class="sk-price-badge sk-price-dn">' + pctChange + '%</span>';
-                }
-            }
-        }
-
-        h += '<div class="stock-card">';
-        h += '<div class="sk-header">' +
-             '<span class="sk-icon">' + catIc(cat) + '</span>' +
-             '<span class="sk-name">' + catNm(cat) + '</span>' +
-             '<span class="' + statusClass + '">' + statusText + '</span>' +
-             '</div>';
-
-        h += '<div class="sk-bar-wrap"><div class="sk-bar-fill" style="width:' + barPct + '%;background:' + barColor + '"></div></div>';
-        h += '<div class="sk-bar-label"><span>' + info.remaining + 'kg remaining</span><span>' + (last.weight || '?') + 'kg last stock</span></div>';
-
-        var lastRateVal = last.weight > 0 ? '₹' + (last.amount / last.weight).toFixed(1) + '/kg' : 'N/A';
-        h += '<div class="sk-stats">';
-        h += '<div class="sk-stat"><span class="sk-stat-val">' + lastRateVal + priceBadge + '</span><span class="sk-stat-lbl">Last Rate</span></div>';
-        h += '<div class="sk-stat"><span class="sk-stat-val">' + info.daysSinceLast + 'd ago</span><span class="sk-stat-lbl">Last Purchase</span></div>';
-        h += '<div class="sk-stat"><span class="sk-stat-val">' + info.dailyRate.toFixed(1) + 'kg/d</span><span class="sk-stat-lbl">Avg Usage</span></div>';
-        h += '</div>';
-
-        // Purchase history (last 3)
-        h += '<div class="sk-history">';
-        purchases.slice(-3).reverse().forEach(function(p) {
-            var rateStr = p.weight > 0 ? '₹' + (p.amount / p.weight).toFixed(1) + '/kg = ₹' + p.amount : '₹' + p.amount;
-            h += '<div class="sk-hist-row">' +
-                 '<span class="sk-hist-date">' + fmtDateLong(p.date) + '</span>' +
-                 '<span class="sk-hist-info">' + p.weight + 'kg @ ' + rateStr + '</span>' +
-                 '</div>';
-        });
-        h += '</div></div>';
-    });
-    ct.innerHTML = h || '<div class="no-data">No stock data available</div>';
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${fmtCurrency(ctx.raw)}` } },
+        legend:  { labels: { color: '#9399b8', font: { size: 11 } } },
+      },
+      scales: {
+        x: { ticks: { color:'#565d80', maxTicksLimit:8 }, grid:{ display:false } },
+        y: { ticks: { color:'#565d80', callback: v=>'₹'+Math.round(v) }, grid:{ color:'rgba(255,255,255,0.04)' } }
+      }
+    }
+  });
 }
 
+// ── Stock Tracker ────────────────────────────────────────────────────────
+function _renderStockTracker(allExps, allSales) {
+  const ct = document.getElementById('stockTrackerContent');
+  if (!ct) return;
 
-// ============ PRICE TREND ============
-var _priceCat = 'atta';
-function renderPriceTrend(cat) {
-    _priceCat = cat;
-    document.querySelectorAll('.price-cat-btn').forEach(function(b) {
-        b.classList.toggle('active', b.getAttribute('data-cat') === cat);
-    });
+  const today  = todayStr();
+  const d30    = new Date(); d30.setDate(d30.getDate()-30);
+  const start30 = d30.toISOString().split('T')[0];
+  const recentExps  = dataInRange(allExps,  start30, today);
+  const recentSales = dataInRange(allSales, start30, today);
 
-    var purchases = allExpenses
-        .filter(function(x) { return x.category === cat && x.weight > 0; })
-        .sort(function(a, b) { return a.date < b.date ? -1 : 1; });
+  const totalRotiSold = recentSales.reduce((s,x)=>s+(x.qty||0),0);
 
-    var chartArea = document.getElementById('priceTrendChart');
-    if (!chartArea) return;
+  // Atta
+  const attaBuys = recentExps.filter(e => /atta|flour|maida|gehu|wheat/i.test(e.category||''));
+  const totalKg  = attaBuys.reduce((s,e) => {
+    if (e.unit === 'kg' && e.qty) return s + parseFloat(e.qty);
+    return s;
+  }, 0);
 
-    if (!purchases.length || typeof Chart === 'undefined') {
-        chartArea.innerHTML = '<div class="chart-empty" style="height:140px;display:flex;align-items:center;justify-content:center;color:var(--tx3);font-size:13px">No purchase data for ' + catNm(cat) + '</div>';
-        return;
-    }
+  // Guard: kgPerRoti must be reasonable (0.01–0.1)
+  let kgPerRoti = 0.023;
+  if (totalKg > 0 && totalRotiSold > 100) {
+    const calc = totalKg / totalRotiSold;
+    if (calc >= 0.005 && calc <= 0.15) kgPerRoti = calc;
+  }
 
-    var labels = purchases.map(function(p) {
-        var parts = p.date.split('-');
-        return parts[2] + '/' + parts[1];
-    });
-    var rates = purchases.map(function(p) { return parseFloat((p.amount / p.weight).toFixed(2)); });
+  const lastAttaBuy = attaBuys.sort((a,b)=>b.date.localeCompare(a.date))[0];
+  const dailyRotiAvg = totalRotiSold / 30;
+  const dailyAttaKg  = dailyRotiAvg * kgPerRoti;
+  let   attaDaysLeft = 0;
 
-    // Summary badges
-    var curRate  = rates[rates.length - 1];
-    var prevRate = rates.length > 1 ? rates[rates.length - 2] : curRate;
-    var chg      = prevRate > 0 ? ((curRate - prevRate) / prevRate * 100).toFixed(1) : '0';
-    var bestRate = Math.min.apply(null, rates);
-    var avgRate  = (rates.reduce(function(a, b) { return a + b; }, 0) / rates.length).toFixed(1);
+  if (lastAttaBuy && lastAttaBuy.qty && lastAttaBuy.unit === 'kg') {
+    const daysSinceBuy = Math.round((new Date()-new Date(lastAttaBuy.date))/86400000);
+    const kgUsed       = daysSinceBuy * dailyAttaKg;
+    const kgLeft       = Math.max(0, parseFloat(lastAttaBuy.qty) - kgUsed);
+    attaDaysLeft       = dailyAttaKg > 0 ? Math.round(kgLeft / dailyAttaKg) : 0;
+  }
 
-    var badgesEl = document.getElementById('priceBadges');
-    if (badgesEl) {
-        var chgClass = parseFloat(chg) > 0 ? 'price-up' : parseFloat(chg) < 0 ? 'price-dn' : '';
-        badgesEl.innerHTML =
-            '<div class="price-badge"><span class="pb-val">₹' + curRate + '</span><span class="pb-lbl">Current</span></div>' +
-            '<div class="price-badge ' + chgClass + '"><span class="pb-val">' + (parseFloat(chg) > 0 ? '↑' : '↓') + ' ' + Math.abs(chg) + '%</span><span class="pb-lbl">vs Last</span></div>' +
-            '<div class="price-badge pb-best"><span class="pb-val">₹' + bestRate + '</span><span class="pb-lbl">Best Price</span></div>' +
-            '<div class="price-badge"><span class="pb-val">₹' + avgRate + '</span><span class="pb-lbl">Avg/kg</span></div>';
-    }
+  // Gas cylinder (cycle-based)
+  const gasBuys   = recentExps.filter(e => /gas|cylinder|lpg/i.test(e.category||''));
+  const lastGasBuy= gasBuys.sort((a,b)=>b.date.localeCompare(a.date))[0];
+  const GAS_AVG_DAYS = 28;
+  const gasDaysLeft  = lastGasBuy
+    ? Math.max(0, GAS_AVG_DAYS - Math.round((new Date()-new Date(lastGasBuy.date))/86400000))
+    : null;
 
-    chartArea.innerHTML = '<canvas id="ptCanvas" style="width:100%;height:140px"></canvas>';
-    var ctx = document.getElementById('ptCanvas');
-    if (!ctx) return;
+  const _urgencyClass = (days) =>
+    days === null ? 'stock-item--unknown' :
+    days <= 2     ? 'stock-item--critical' :
+    days <= 5     ? 'stock-item--low' : 'stock-item--ok';
 
-    var isDark    = document.documentElement.getAttribute('data-theme') === 'dark';
-    var textColor = isDark ? '#565d80' : '#9ca3af';
-    var gridColor = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.07)';
+  const bizName = getState('businessName');
+  // Supplier contact from settings
+  const supplierPhone = localStorage.getItem('mdSupplierPhone') || '';
 
-    try {
-        new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: labels,
-                datasets: [{
-                    label:           '₹/kg',
-                    data:            rates,
-                    borderColor:     'var(--pr, #e65100)',
-                    backgroundColor: 'rgba(230,81,0,0.1)',
-                    borderWidth:     2.5,
-                    pointRadius:     5,
-                    pointHoverRadius:7,
-                    pointBackgroundColor:'#e65100',
-                    tension:         0.35,
-                    fill:            true
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                animation: { duration: 500 },
-                plugins: {
-                    legend: { display: false },
-                    tooltip: {
-                        callbacks: { label: function(c) { return '₹' + c.parsed.y + '/kg'; } }
-                    }
-                },
-                scales: {
-                    y: {
-                        beginAtZero: false,
-                        grid: { color: gridColor },
-                        ticks: { color: textColor, font: { size: 10 }, callback: function(v) { return '₹' + v; } }
-                    },
-                    x: { grid: { display: false }, ticks: { color: textColor, font: { size: 9 }, maxRotation: 0 } }
-                }
-            }
-        });
-    } catch (err) { console.error('[PriceTrend]', err); }
+  const _orderBtn = (item) => supplierPhone
+    ? `<button class="btn btn--sm btn--whatsapp" onclick="orderStock('${item}')">Order Now 📱</button>` : '';
+
+  ct.innerHTML = `
+    <div class="stock-item ${_urgencyClass(attaDaysLeft)}">
+      <div class="stock-item__icon">🌾</div>
+      <div class="stock-item__info">
+        <div class="stock-item__name">Atta (Wheat Flour)</div>
+        <div class="stock-item__days">${attaDaysLeft > 0 ? `~${attaDaysLeft} days remaining` : 'Unknown — add purchase'}</div>
+        <div class="stock-item__sub">${(kgPerRoti*1000).toFixed(0)}g per roti · ${dailyAttaKg.toFixed(1)}kg/day</div>
+      </div>
+      ${attaDaysLeft > 0 && attaDaysLeft <= 5 ? _orderBtn('Atta') : ''}
+    </div>
+    <div class="stock-item ${_urgencyClass(gasDaysLeft)}">
+      <div class="stock-item__icon">🔥</div>
+      <div class="stock-item__info">
+        <div class="stock-item__name">Gas Cylinder</div>
+        <div class="stock-item__days">${gasDaysLeft !== null ? `~${gasDaysLeft} days remaining` : 'Unknown — add purchase'}</div>
+        <div class="stock-item__sub">Based on last refill date</div>
+      </div>
+      ${gasDaysLeft !== null && gasDaysLeft <= 3 ? _orderBtn('Gas') : ''}
+    </div>
+  `;
 }
 
-
-// ============ DAY-WISE SALES (PATTERN DETECTION) ============
-function renderDayWiseSales() {
-    var ct = document.getElementById('dayWiseSalesBody');
-    if (!ct) return;
-
-    var range     = getWindowDates();
-    var sales     = dataInRange(allSales, range.start, range.end);
-    var dayNames  = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    var dayTotals = [0, 0, 0, 0, 0, 0, 0];
-    var dayCounts = [0, 0, 0, 0, 0, 0, 0];
-
-    // Group by day-of-week
-    var dateMap = {};
-    sales.forEach(function(s) {
-        var d     = new Date(s.date + 'T00:00:00');
-        var dow   = d.getDay();
-        var ds    = s.date;
-        dayTotals[dow] += s.total;
-        if (!dateMap[ds]) { dateMap[ds] = true; dayCounts[dow]++; }
-    });
-
-    // Average per occurrence
-    var dayAvgs = dayTotals.map(function(t, i) {
-        return dayCounts[i] > 0 ? Math.round(t / dayCounts[i]) : 0;
-    });
-
-    var maxAvg   = Math.max.apply(null, dayAvgs) || 1;
-    var bestIdx  = dayAvgs.indexOf(maxAvg);
-    var worstAvg = Math.min.apply(null, dayAvgs.filter(function(v) { return v > 0; }));
-    var worstIdx = dayAvgs.indexOf(worstAvg);
-
-    // Detect patterns for insights
-    var weekdays  = [dayAvgs[1], dayAvgs[2], dayAvgs[3], dayAvgs[4], dayAvgs[5]]; // Mon-Fri
-    var weekends  = [dayAvgs[0], dayAvgs[6]]; // Sun, Sat
-    var wdAvg     = weekdays.reduce(function(a, b) { return a + b; }, 0) / weekdays.length;
-    var weAvg     = weekends.reduce(function(a, b) { return a + b; }, 0) / weekends.length;
-    var weekendBetter = weAvg > wdAvg * 1.1;
-
-    var h = '<div class="heatmap-grid">';
-    dayNames.forEach(function(name, i) {
-        var pct    = maxAvg > 0 ? (dayAvgs[i] / maxAvg * 100) : 0;
-        var height = Math.max(4, pct * 0.7); // max 70px
-        var color  = i === bestIdx  ? 'var(--gn)' : i === worstIdx ? 'var(--rd)' : 'var(--pr)';
-        var badge  = '';
-        if (i === bestIdx)  badge = '<span class="hm-badge">Best</span>';
-        if (i === worstIdx) badge = '<span class="hm-badge hm-badge-low">Low</span>';
-
-        h += '<div class="hm-cell' +
-             (i === bestIdx ? ' hm-best' : i === worstIdx ? ' hm-worst' : '') + '">' +
-             '<div class="hm-bar" style="height:' + height + 'px;background:' + color + '"></div>' +
-             '<div class="hm-day">' + name + '</div>' +
-             (dayAvgs[i] > 0 ? '<div class="hm-rev">₹' + dayAvgs[i] + '</div>' : '<div class="hm-rev" style="color:var(--tx3)">—</div>') +
-             (badge ? badge : '') +
-             '</div>';
-    });
-    h += '</div>';
-
-    // Summary row
-    var totalSalesAmt = sales.reduce(function(s, sl) { return s + sl.total; }, 0);
-    var totalOrders   = sales.length;
-    var avgOrder      = totalOrders > 0 ? Math.round(totalSalesAmt / totalOrders) : 0;
-    var activeDays    = Object.keys(dateMap).length;
-
-    h += '<div class="hm-summary">';
-    h += '<div class="hms-item"><span class="hms-val">' + dayNames[bestIdx] + '</span><span class="hms-lbl">Best Day</span></div>';
-    h += '<div class="hms-item"><span class="hms-val">' + dayNames[worstIdx] + '</span><span class="hms-lbl">Slow Day</span></div>';
-    h += '<div class="hms-item"><span class="hms-val">₹' + avgOrder + '</span><span class="hms-lbl">Avg/Order</span></div>';
-    h += '<div class="hms-item"><span class="hms-val">' + activeDays + '</span><span class="hms-lbl">Active Days</span></div>';
-    h += '</div>';
-
-    // Pattern insight
-    if (weekendBetter) {
-        h += '<div class="an-insight-pill green">📈 Weekends average ' + Math.round(weAvg) + '% more than weekdays</div>';
-    }
-
-    ct.innerHTML = h;
-
-    // Revenue forecast
-    renderRevenueForecast(sales);
+export function orderStock(item) {
+  const phone = localStorage.getItem('mdSupplierPhone') || '';
+  if (!phone) { alert('Add supplier phone in Settings → Payments'); return; }
+  const bizName = getState('businessName');
+  const msg = `Hello! ${bizName} needs ${item}. Please arrange delivery. Thank you.`;
+  window.open(buildWhatsAppLink(phone, msg), '_blank');
 }
 
-function renderRevenueForecast(sales) {
-    var ct = document.getElementById('forecastBody');
-    if (!ct) return;
+// ── Customer Insights ────────────────────────────────────────────────────
+function _renderCustomerInsights(sales, custs) {
+  const ct = document.getElementById('custInsightsContent');
+  if (!ct) return;
 
-    // Build daily revenue array for last 30 days
-    var points  = [];
-    var dateMap = {};
-    sales.forEach(function(s) {
-        if (!dateMap[s.date]) dateMap[s.date] = 0;
-        dateMap[s.date] += s.total;
-    });
+  const byCustomer = {};
+  sales.forEach(s => {
+    if (!byCustomer[s.customerId]) byCustomer[s.customerId] = { qty:0, revenue:0, days: new Set() };
+    byCustomer[s.customerId].qty     += s.qty||0;
+    byCustomer[s.customerId].revenue += s.total||0;
+    byCustomer[s.customerId].days.add(s.date);
+  });
 
-    // Convert to indexed points (x = day index, y = revenue)
-    var sortedDates = Object.keys(dateMap).sort();
-    sortedDates.forEach(function(d, i) {
-        points.push({ x: i, y: dateMap[d] });
-    });
+  const ranked = Object.entries(byCustomer)
+    .map(([id, data]) => {
+      const cust = custs.find(c=>c.id===id);
+      return { id, cust, ...data, dayCount: data.days.size };
+    })
+    .filter(r => r.cust)
+    .sort((a,b) => b.revenue - a.revenue);
 
-    if (points.length < 5) {
-        ct.innerHTML = '<div class="no-data" style="font-size:12px">Need at least 5 days of data for forecasting</div>';
-        return;
-    }
+  if (!ranked.length) { ct.innerHTML = `<p class="empty-mini">${t('no_analytics')}</p>`; return; }
 
-    var reg  = linearRegression(points);
-    var nextX = points.length; // Next day index
-    var forecast7 = [];
-    for (var f = 0; f < 7; f++) {
-        forecast7.push(Math.round(reg.predict(nextX + f)));
-    }
-    var totalForecast7 = forecast7.reduce(function(a, b) { return a + b; }, 0);
-
-    var trendLabel, trendClass;
-    if (reg.slope > 50)       { trendLabel = '📈 Upward trend detected';   trendClass = 'green'; }
-    else if (reg.slope < -50) { trendLabel = '📉 Downward trend detected'; trendClass = 'red'; }
-    else                      { trendLabel = '→ Revenue is stable';         trendClass = 'neutral'; }
-
-    var r2Pct = Math.round(reg.r2 * 100);
-    var conf  = r2Pct > 70 ? 'High' : r2Pct > 40 ? 'Medium' : 'Low';
-
-    var h = '<div class="forecast-box">';
-    h += '<div class="fc-row"><span class="fc-lbl">7-Day Revenue Forecast</span><span class="fc-val">₹' + totalForecast7.toLocaleString() + '</span></div>';
-    h += '<div class="fc-row"><span class="fc-lbl">Daily Average (forecast)</span><span class="fc-val">₹' + Math.round(totalForecast7 / 7) + '</span></div>';
-    h += '<div class="fc-row"><span class="fc-lbl">Trend</span><span class="fc-val ' + trendClass + '">' + trendLabel + '</span></div>';
-    h += '<div class="fc-row"><span class="fc-lbl">Confidence</span><span class="fc-val">' + conf + ' (R²: ' + r2Pct + '%)</span></div>';
-    h += '</div>';
-    ct.innerHTML = h;
+  const maxRev = ranked[0].revenue;
+  ct.innerHTML = ranked.slice(0,8).map((r,i) => {
+    const pct = maxRev > 0 ? Math.round(r.revenue/maxRev*100) : 0;
+    return `<div class="cust-insight-row">
+      <div class="cust-insight__rank">${i+1}</div>
+      <div class="cust-insight__info">
+        <button class="cust-insight__name" onclick="openCustomerProfile('${r.id}')">${r.cust.name}</button>
+        <div class="cust-insight__bar"><div class="cust-insight__fill" style="width:${pct}%"></div></div>
+        <span class="cust-insight__meta">${r.qty} roti · ${r.dayCount} days</span>
+      </div>
+      <span class="cust-insight__rev">${fmtCurrency(r.revenue)}</span>
+    </div>`;
+  }).join('');
 }
 
+// ── Smart Insights ───────────────────────────────────────────────────────
+function _renderSmartInsights(sales, exps, custs, waste) {
+  const ct = document.getElementById('smartInsightsContent');
+  if (!ct) return;
 
-// ============ TRUE UNIT ECONOMICS ============
-/**
- * renderUnitEconomics — Phase 3 fix
- *
- * v6 BUG: Only counted atta cost → showed 81.9% margin (wrong).
- * v7 FIX: Counts atta + oil + gas + polythene → REAL margin.
- */
-function renderUnitEconomics() {
-    var range = getWindowDates();
+  const insights = [];
+  const today    = todayStr();
+  const n        = new Set(sales.map(s=>s.date)).size;
 
-    var rotiSales  = dataInRange(allSales,    range.start, range.end);
-    var allWindowExps = dataInRange(allExpenses, range.start, range.end);
-
-    var totalRoti    = rotiSales.reduce(function(s, sl) { return s + sl.quantity; }, 0);
-    var totalRevenue = rotiSales.reduce(function(s, sl) { return s + sl.total; }, 0);
-
-    if (!totalRoti) {
-        var ueBody = document.getElementById('unitEconBody');
-        if (ueBody) ueBody.innerHTML = '<div class="no-data">No sales data in selected period</div>';
-        return;
-    }
-
-    // Cost breakdown — all categories
-    var costByCategory = {};
-    var totalExpenses  = 0;
-    allWindowExps.forEach(function(x) {
-        if (!costByCategory[x.category]) costByCategory[x.category] = 0;
-        costByCategory[x.category] += x.amount;
-        totalExpenses += x.amount;
+  // ① Best day of week
+  if (n >= 14) {
+    const byDay = Array(7).fill(0).map(()=>({rev:0,cnt:0}));
+    sales.forEach(s => {
+      const day = new Date(s.date).getDay();
+      byDay[day].rev += s.total||0;
+      byDay[day].cnt++;
     });
-
-    var netProfit      = totalRevenue - totalExpenses;
-    var trueMarginPct  = totalRevenue > 0 ? ((netProfit / totalRevenue) * 100).toFixed(1) : '0';
-    var revenuePerRoti = totalRevenue / totalRoti;
-    var costPerRoti    = totalExpenses / totalRoti;
-    var profitPerRoti  = revenuePerRoti - costPerRoti;
-
-    // Gauge fill: angle based on margin %
-    var gaugeEl = document.getElementById('ueGaugeFill');
-    if (gaugeEl) {
-        var angle = Math.max(-90, Math.min(0, (-90 + (parseFloat(trueMarginPct) / 100) * 90)));
-        gaugeEl.style.transform = 'rotate(' + angle + 'deg)';
-        gaugeEl.style.background = parseFloat(trueMarginPct) > 60 ? 'var(--gn)' :
-                                    parseFloat(trueMarginPct) > 30 ? 'var(--am)' : 'var(--rd)';
+    const dayNames = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+    const avgAll   = byDay.filter(d=>d.cnt>0).reduce((s,d)=>s+d.rev/d.cnt,0)/byDay.filter(d=>d.cnt>0).length;
+    const best     = byDay.reduce((b,d,i)=>d.cnt>0&&d.rev/d.cnt>b.avg?{i,avg:d.rev/d.cnt}:b,{i:-1,avg:0});
+    if (best.i >= 0 && avgAll > 0) {
+      const pct = Math.round((best.avg/avgAll-1)*100);
+      insights.push({
+        icon: '📅', type: 'info',
+        title: t('best_day', dayNames[best.i], pct),
+        body:  `Consider higher production on ${dayNames[best.i]}s`,
+        confidence: n >= 30 ? 'high' : 'medium',
+        based_on: n,
+      });
     }
-    var marginEl = document.getElementById('ueMarginPct');
-    if (marginEl) marginEl.textContent = trueMarginPct + '%';
+  }
 
-    var ueBody = document.getElementById('unitEconBody');
-    if (!ueBody) return;
-
-    var h = '<div class="ue-stats">';
-    h += '<div class="ue-row"><span class="ue-lbl">Avg Selling Rate</span><span class="ue-val">₹' + revenuePerRoti.toFixed(2) + '/roti</span></div>';
-
-    // Per-category cost per roti
-    var catColors = { atta: 'red', oil: 'red', gas: 'red', poly: 'red', other: 'red' };
-    Object.keys(costByCategory).forEach(function(cat) {
-        var cpr = (costByCategory[cat] / totalRoti).toFixed(2);
-        h += '<div class="ue-row"><span class="ue-lbl">' + catNm(cat) + ' Cost/Roti</span>' +
-             '<span class="ue-val ' + (catColors[cat] || '') + '">-₹' + cpr + '</span></div>';
-    });
-
-    h += '<div class="ue-row ue-row-total"><span class="ue-lbl" style="font-weight:700">Profit/Roti</span>' +
-         '<span class="ue-val ' + (profitPerRoti >= 0 ? 'green' : 'red') + '">' +
-         (profitPerRoti >= 0 ? '₹' : '-₹') + Math.abs(profitPerRoti).toFixed(2) + '</span></div>';
-    h += '</div>';
-
-    h += '<div class="ue-detail">';
-    h += '<div class="ue-row"><span class="ue-lbl">Total Roti Sold</span><span class="ue-val">' + totalRoti.toLocaleString() + '</span></div>';
-    h += '<div class="ue-row"><span class="ue-lbl">Total Revenue</span><span class="ue-val green">₹' + totalRevenue.toLocaleString() + '</span></div>';
-    h += '<div class="ue-row"><span class="ue-lbl">Total Expenses</span><span class="ue-val red">-₹' + totalExpenses.toLocaleString() + '</span></div>';
-    h += '<div class="ue-row"><span class="ue-lbl">Net Profit</span><span class="ue-val ' + (netProfit >= 0 ? 'green' : 'red') + '">' +
-         (netProfit >= 0 ? '₹' : '-₹') + Math.abs(netProfit).toLocaleString() + '</span></div>';
-    h += '</div>';
-
-    h += '<div class="ue-note">* All expense categories included. True margin = ' + trueMarginPct + '%. ' +
-         'Only categories with expenses in this period are shown.</div>';
-
-    ueBody.innerHTML = h;
-}
-
-
-// ============ CUSTOMER INSIGHTS + RISK SCORING ============
-function renderCustomerInsights() {
-    var ct = document.getElementById('customerInsightsBody');
-    if (!ct) return;
-
-    if (!allCustomers.length) {
-        ct.innerHTML = '<div class="no-data">No customers added yet</div>';
-        return;
-    }
-
-    var today      = new Date(); today.setHours(23, 59, 59, 999);
-    var todayStr2  = todayStr();
-
-    var custData = allCustomers.map(function(c) {
-        var sales = allSales.filter(function(s) { return s.customerId === c.id; });
-        if (!sales.length) return null;
-
-        // Sort by date descending
-        sales.sort(function(a, b) { return a.date < b.date ? 1 : -1; });
-
-        var totalRevenue = sales.reduce(function(s, sl) { return s + sl.total; }, 0);
-        var totalRoti    = sales.reduce(function(s, sl) { return s + sl.quantity; }, 0);
-        var lastSaleDate = sales[0].date;
-        var lastSaleObj  = new Date(lastSaleDate + 'T00:00:00');
-        var daysInactive = Math.round((today - lastSaleObj) / 86400000);
-
-        // Payment reliability: % of credit sales
-        var creditSales = sales.filter(function(s) { return s.paymentType === 'credit'; }).length;
-        var reliabilityPct = 100 - Math.round((creditSales / sales.length) * 100);
-
-        // Pending credit
-        var creditGiven = sales
-            .filter(function(s) { return s.paymentType === 'credit'; })
-            .reduce(function(s, sl) { return s + sl.total; }, 0);
-        var creditPaid = allCreditPayments
-            .filter(function(p) { return p.customerId === c.id; })
-            .reduce(function(s, p) { return s + p.amount; }, 0);
-        var pending = Math.max(0, creditGiven - creditPaid);
-
-        // Risk score (0-100, lower = riskier):
-        // Factors: inactivity (40pts), credit reliability (40pts), order frequency (20pts)
-        var inactivityScore   = daysInactive <= 1 ? 40 : daysInactive <= 3 ? 30 : daysInactive <= 7 ? 15 : 0;
-        var reliabilityScore  = Math.round(reliabilityPct * 0.4);
-        var recent30Cut       = new Date(); recent30Cut.setDate(recent30Cut.getDate() - 30);
-        var recent30CutStr    = recent30Cut.getFullYear() + '-' + S(recent30Cut.getMonth()+1) + '-' + S(recent30Cut.getDate());
-        var recentOrderCount  = sales.filter(function(s) { return s.date >= recent30CutStr; }).length;
-        var freqScore         = recentOrderCount >= 20 ? 20 : Math.round(recentOrderCount * 1);
-        var riskScore         = inactivityScore + reliabilityScore + freqScore;
-
-        return {
-            id: c.id, name: c.name, totalRevenue: totalRevenue, totalRoti: totalRoti,
-            lastSaleDate: lastSaleDate, daysInactive: daysInactive,
-            reliabilityPct: reliabilityPct, pending: pending,
-            riskScore: riskScore, salesCount: sales.length
-        };
-    }).filter(Boolean);
-
-    if (!custData.length) {
-        ct.innerHTML = '<div class="no-data">No sales data to analyze</div>';
-        return;
-    }
-
-    // Sort by revenue desc
-    custData.sort(function(a, b) { return b.totalRevenue - a.totalRevenue; });
-
-    var h = '';
-    custData.slice(0, 8).forEach(function(c, i) {
-        var riskColor  = c.riskScore >= 60 ? 'var(--gn)' : c.riskScore >= 35 ? 'var(--am)' : 'var(--rd)';
-        var riskLabel  = c.riskScore >= 60 ? 'Active'   : c.riskScore >= 35 ? 'At Risk'  : 'Inactive';
-        var rankEmoji  = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : '#' + (i + 1);
-
-        h += '<div class="cust-insight-card">';
-        h += '<div class="ci-top">';
-        h += '<span class="ci-rank">' + rankEmoji + '</span>';
-        h += '<span class="ci-name">' + esc(c.name) + '</span>';
-        h += '<span class="ci-rev">₹' + c.totalRevenue.toLocaleString() + '</span>';
-        h += '</div>';
-        h += '<div class="ci-bar-wrap"><div class="ci-bar" style="width:' +
-             Math.round((c.totalRevenue / custData[0].totalRevenue) * 100) + '%;background:' +
-             (i === 0 ? 'var(--gn)' : 'var(--pr)') + '"></div></div>';
-        h += '<div class="ci-meta">';
-        h += '<span class="ci-pill" style="background:' + riskColor + '20;color:' + riskColor + '">' + riskLabel + '</span>';
-        h += '<span class="ci-stat">Last: ' + (c.daysInactive === 0 ? 'Today' : c.daysInactive + 'd ago') + '</span>';
-        h += '<span class="ci-stat">' + c.totalRoti + ' roti</span>';
-        if (c.pending > 0) h += '<span class="ci-pill" style="background:var(--amb);color:var(--am)">₹' + c.pending + ' pending</span>';
-        h += '</div></div>';
-    });
-
-    ct.innerHTML = h;
-}
-
-
-// ============ SMART INSIGHTS ENGINE ============
-function renderSmartInsights() {
-    var ct = document.getElementById('dashInsights');
-    if (!ct) return;
-
-    var insights = [];
-    var today    = todayStr();
-    var nowHour  = new Date().getHours();
-
-    // ---- Stock alerts ----
-    ['atta', 'oil'].forEach(function(cat) {
-        var info = calculateTrueStock(cat);
-        if (!info.purchases.length) return;
-
-        if (info.remaining <= 0) {
-            insights.push({
-                priority: 1,
-                icon: '🚨',
-                text: catNm(cat) + ' is COMPLETELY OUT OF STOCK. Order immediately to avoid production stoppage.',
-                color: 'var(--rd)'
-            });
-        } else if (info.daysRemaining <= 1) {
-            insights.push({
-                priority: 1,
-                icon: '🔴',
-                text: catNm(cat) + ' will run out TODAY. Only ' + info.remaining + 'kg remaining at current usage rate.',
-                color: 'var(--rd)'
-            });
-        } else if (info.daysRemaining <= 3) {
-            insights.push({
-                priority: 2,
-                icon: '⚠️',
-                text: catNm(cat) + ' is running low — ' + info.remaining + 'kg left, approximately ' + info.daysRemaining + ' days remaining.',
-                color: 'var(--am)'
-            });
-        }
-    });
-
-    // ---- Price increase alert ----
-    ['atta', 'oil'].forEach(function(cat) {
-        var purchases = allExpenses
-            .filter(function(x) { return x.category === cat && x.weight > 0; })
-            .sort(function(a, b) { return a.date < b.date ? -1 : 1; });
-        if (purchases.length < 2) return;
-        var last    = purchases[purchases.length - 1];
-        var prev    = purchases[purchases.length - 2];
-        var lastR   = last.amount / last.weight;
-        var prevR   = prev.amount / prev.weight;
-        var change  = ((lastR - prevR) / prevR * 100);
-        if (change >= 10) {
-            insights.push({
-                priority: 2,
-                icon: '💸',
-                text: catNm(cat) + ' price increased by ' + change.toFixed(1) + '% (₹' + prevR.toFixed(1) + ' → ₹' + lastR.toFixed(1) + '/kg). Consider reviewing selling rates.',
-                color: 'var(--am)'
-            });
-        } else if (change <= -5) {
-            insights.push({
-                priority: 4,
-                icon: '💰',
-                text: catNm(cat) + ' price dropped ' + Math.abs(change).toFixed(1) + '% (₹' + prevR.toFixed(1) + ' → ₹' + lastR.toFixed(1) + '/kg). Good buying opportunity.',
-                color: 'var(--gn)'
-            });
-        }
-    });
-
-    // ---- Today's performance ----
-    var todaySales  = salesForDate(today);
-    var todayInc    = todaySales.reduce(function(s, sl) { return s + sl.total; }, 0);
-    var todayRoti   = todaySales.reduce(function(s, sl) { return s + sl.quantity; }, 0);
-
-    if (!todaySales.length && nowHour >= 8 && nowHour <= 18) {
-        insights.push({ priority: 2, icon: '📋', text: 'No sales recorded today yet. Use Quick Sale to log your morning deliveries.', color: 'var(--bl)' });
-    }
-
-    // Yesterday comparison
-    var yd    = new Date(); yd.setDate(yd.getDate() - 1);
-    var ydStr = yd.getFullYear() + '-' + S(yd.getMonth()+1) + '-' + S(yd.getDate());
-    var ydInc = salesForDate(ydStr).reduce(function(s, sl) { return s + sl.total; }, 0);
-    if (ydInc > 0 && todayInc > 0) {
-        var delta = ((todayInc - ydInc) / ydInc * 100).toFixed(0);
-        if (Math.abs(parseFloat(delta)) >= 15) {
-            insights.push({
-                priority: 3,
-                icon: parseFloat(delta) > 0 ? '📈' : '📉',
-                text: 'Today\'s revenue is ' + Math.abs(delta) + '% ' + (parseFloat(delta) > 0 ? 'higher' : 'lower') + ' than yesterday (₹' + todayInc + ' vs ₹' + ydInc + ').',
-                color: parseFloat(delta) > 0 ? 'var(--gn)' : 'var(--rd)'
-            });
-        }
-    }
-
-    // ---- Inactive customers ----
-    var threeDaysAgo = new Date(); threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
-    var tda = threeDaysAgo.getFullYear() + '-' + S(threeDaysAgo.getMonth()+1) + '-' + S(threeDaysAgo.getDate());
-    var inactiveCusts = allCustomers.filter(function(c) {
-        var lastSale = null;
-        allSales.forEach(function(s) { if (s.customerId === c.id && (!lastSale || s.date > lastSale)) lastSale = s.date; });
-        return lastSale && lastSale < tda;
-    });
-    if (inactiveCusts.length > 0) {
+  // ② Inactive customers
+  custs.filter(c=>c.status==='active').forEach(c => {
+    const lastSale = sales.filter(s=>s.customerId===c.id).sort((a,b)=>b.date.localeCompare(a.date))[0];
+    if (lastSale) {
+      const days = Math.round((new Date()-new Date(lastSale.date))/86400000);
+      if (days >= 5 && days < 60) {
         insights.push({
-            priority: 3,
-            icon: '👤',
-            text: inactiveCusts.length + ' customer' + (inactiveCusts.length > 1 ? 's have' : ' has') + ' not ordered in 3+ days: ' + inactiveCusts.slice(0, 2).map(function(c) { return c.name; }).join(', ') + (inactiveCusts.length > 2 ? ' +' + (inactiveCusts.length - 2) + ' more' : '') + '.',
-            color: 'var(--am)'
+          icon: '👤', type: 'warning',
+          title: `${c.name} hasn't ordered in ${days} days`,
+          body:  `Last sale: ${fmtDate(lastSale.date)}`,
+          confidence: 'high', based_on: 1,
+          action: c.phone ? { label: t('whatsapp_remind'), fn: `sendWhatsAppReminder('${c.id}',0)` } : null,
         });
+      }
     }
+  });
 
-    // ---- Pending credit alert ----
-    var totalPending = 0;
-    allCustomers.forEach(function(c) {
-        var given = allSales.filter(function(s) { return s.customerId === c.id && s.paymentType === 'credit'; }).reduce(function(s, sl) { return s + sl.total; }, 0);
-        var paid  = allCreditPayments.filter(function(p) { return p.customerId === c.id; }).reduce(function(s, p) { return s + p.amount; }, 0);
-        totalPending += Math.max(0, given - paid);
+  // ③ Revenue forecast
+  if (n >= 14) {
+    const dailyRevs = [];
+    const sorted = [...new Set(sales.map(s=>s.date))].sort();
+    sorted.forEach(d => { dailyRevs.push(sales.filter(s=>s.date===d).reduce((s,x)=>s+(x.total||0),0)); });
+    const reg = _linearRegression(dailyRevs.map((_,i)=>i), dailyRevs);
+    if (reg.r2 > 0.3 && reg.slope !== 0) {
+      const dir   = reg.slope > 0 ? '📈 growing' : '📉 declining';
+      const chg   = Math.abs(Math.round(reg.slope));
+      insights.push({
+        icon: '📊', type: reg.slope > 0 ? 'success' : 'warning',
+        title: `Revenue trend: ${dir}`,
+        body:  `~₹${chg}/day change. Forecast: ${fmtCurrency(Math.max(0,reg.predict(n+7)))} in 7 days.`,
+        confidence: reg.r2 > 0.6 ? 'high' : 'medium',
+        based_on: n,
+      });
+    }
+  }
+
+  // ④ Waste alert
+  const totalQty   = sales.reduce((s,x)=>s+(x.qty||0),0);
+  const totalWaste = waste.reduce((s,x)=>s+(x.qty||0),0);
+  if (totalQty > 0 && totalWaste / totalQty > 0.1) {
+    insights.push({
+      icon: '♻️', type: 'warning',
+      title: `Waste rate: ${Math.round(totalWaste/totalQty*100)}% of production`,
+      body:  `${totalWaste} roti wasted out of ${totalQty} produced this period`,
+      confidence: 'high', based_on: n,
     });
-    if (totalPending > 500) {
-        insights.push({
-            priority: 3,
-            icon: '💳',
-            text: '₹' + totalPending + ' total credit is pending from customers. Follow up for collection.',
-            color: 'var(--am)'
-        });
-    }
+  }
 
-    // ---- Revenue forecast ----
-    var last7 = [];
-    for (var d = 6; d >= 0; d--) {
-        var dd = new Date(); dd.setDate(dd.getDate() - d);
-        var ds = dd.getFullYear() + '-' + S(dd.getMonth()+1) + '-' + S(dd.getDate());
-        var inc = salesForDate(ds).reduce(function(s, sl) { return s + sl.total; }, 0);
-        last7.push({ x: 6 - d, y: inc });
-    }
-    var reg2 = linearRegression(last7.filter(function(p) { return p.y > 0; }));
-    if (reg2.slope > 100 && reg2.r2 > 0.4) {
-        insights.push({ priority: 4, icon: '🚀', text: 'Strong upward revenue trend detected over the past 7 days. Keep it up!', color: 'var(--gn)' });
-    } else if (reg2.slope < -100 && reg2.r2 > 0.4) {
-        insights.push({ priority: 2, icon: '📉', text: 'Revenue has been declining consistently over the past week. Review your customer order patterns.', color: 'var(--rd)' });
-    }
+  if (!insights.length) {
+    ct.innerHTML = `<p class="empty-mini">Keep recording data — insights will appear after 14 days.</p>`;
+    return;
+  }
 
-    // Sort by priority, limit to 5
-    insights.sort(function(a, b) { return a.priority - b.priority; });
-
-    if (!insights.length) {
-        ct.innerHTML = '<div class="insight-card"><span class="insight-ic">✅</span><span class="insight-text">Everything looks great! Stock is healthy, sales are steady, no pending issues.</span></div>';
-        return;
-    }
-
-    var h = '';
-    insights.slice(0, 5).forEach(function(ins, i) {
-        h += '<div class="insight-card" style="animation-delay:' + (i * 0.06) + 's;border-left-color:' + ins.color + '">' +
-             '<span class="insight-ic">' + ins.icon + '</span>' +
-             '<span class="insight-text">' + esc(ins.text) + '</span>' +
-             '</div>';
-    });
-    if (insights.length > 5) {
-        h += '<div style="text-align:center;font-size:11px;color:var(--tx3);padding:4px 0;font-weight:600">' + (insights.length - 5) + ' more insights — check Analytics</div>';
-    }
-    ct.innerHTML = h;
+  ct.innerHTML = insights.map(ins => `
+    <div class="insight-card insight-card--${ins.type}">
+      <div class="insight-card__top">
+        <span class="insight-icon">${ins.icon}</span>
+        <div class="insight-body">
+          <div class="insight-title">${ins.title}</div>
+          <div class="insight-text">${ins.body}</div>
+          ${ins.action ? `<button class="btn btn--sm btn--whatsapp mt-4" onclick="${ins.action.fn}">${ins.action.label}</button>` : ''}
+        </div>
+      </div>
+      <div class="insight-meta">
+        <span class="insight-confidence insight-confidence--${ins.confidence}">${t('insight_confidence_'+ins.confidence)}</span>
+        <span class="insight-based">${t('insight_based_on', ins.based_on, _window)}</span>
+      </div>
+    </div>
+  `).join('');
 }
 
-console.log('[Analytics] Meri Dukaan v7.0 — Analytics rebuilt');
+// ── Linear Regression ────────────────────────────────────────────────────
+function _linearRegression(xs, ys) {
+  const n   = xs.length;
+  const sx  = xs.reduce((s,v)=>s+v,0);
+  const sy  = ys.reduce((s,v)=>s+v,0);
+  const sxy = xs.reduce((s,v,i)=>s+v*ys[i],0);
+  const sxx = xs.reduce((s,v)=>s+v*v,0);
+  const denom = n*sxx - sx*sx;
+
+  // ✅ Guard against division by zero (all x values identical)
+  if (denom === 0) return { slope:0, intercept: sy/n, r2:0, predict: ()=>sy/n };
+
+  const slope     = (n*sxy - sx*sy) / denom;
+  const intercept = (sy - slope*sx) / n;
+  const yMean     = sy / n;
+  const ssTot     = ys.reduce((s,v)=>s+Math.pow(v-yMean,2),0);
+  const ssRes     = ys.reduce((s,v,i)=>s+Math.pow(v-(slope*xs[i]+intercept),2),0);
+  const r2        = ssTot > 0 ? 1 - ssRes/ssTot : 0;
+  const predict   = (x) => slope*x + intercept;
+  return { slope, intercept, r2, predict };
+}
+
+window.setAnalyticsWindow = setAnalyticsWindow;
+window.orderStock         = orderStock;
+export { renderAnalytics, setAnalyticsWindow };
+console.log('[analytics] Meri Dukaan v8.0 ready');

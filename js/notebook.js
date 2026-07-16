@@ -1,221 +1,189 @@
 /* ================================================
-   MERI DUKAAN v7.0 — NOTEBOOK
-   Notes CRUD · Search · Pin · Copy · Firebase sync
-
-   PHASE 2 CHANGES:
-   ✅ 100% English — all Hindi/Hinglish text removed
-   ✅ Empty states use professional English copy
-   ✅ Toast messages in English
+   MERI DUKAAN v8.0 — NOTEBOOK
+   Search · Pin · Copy · Firebase sync · i18n
    ================================================ */
+import { getState }                             from './state.js';
+import { db }                                   from './auth.js';
+import { requireBizId, canModify }              from './state.js';
+import { addDoc, updateDoc, deleteDoc,
+         collection, doc, serverTimestamp }      from 'firebase/firestore';
+import { t }                                    from './i18n.js';
+import { showToast, showConfirm, openOverlay,
+         closeOverlay, setFieldError,
+         clearAllFieldErrors, btnLoading,
+         debounce, findById, esc,
+         fmtDateLong, todayStr, withRetry }     from './core.js';
 
-var notebookSearchQuery = '';
-var noteCats = {
-    general:  { label: 'General',  icon: '📝' },
-    reminder: { label: 'Reminder', icon: '🔔' },
-    idea:     { label: 'Idea',     icon: '💡' },
-    supplier: { label: 'Supplier', icon: '🏪' }
+const biz  = (col) => collection(db, 'businesses', requireBizId(), col);
+const docR = (col, id) => doc(db, 'businesses', requireBizId(), col, id);
+
+const CATS = {
+  general:  { label: 'General',  icon: '📝' },
+  reminder: { label: 'Reminder', icon: '🔔' },
+  idea:     { label: 'Idea',     icon: '💡' },
+  supplier: { label: 'Supplier', icon: '🏪' },
 };
 
-function loadNotes() {
-    var filtered = filterNotes(allNotes, notebookSearchQuery);
-    var pinned   = filtered.filter(function(n) { return n.pinned; });
-    var rest     = filtered.filter(function(n) { return !n.pinned; });
-    var sorted   = pinned.concat(rest);
+let _searchQ = '';
+const _searchDebounced = debounce((v) => { _searchQ = v||''; loadNotes(); }, 250);
 
-    var countEl = document.getElementById('noteCount');
-    if (countEl) countEl.textContent = allNotes.length + ' note' + (allNotes.length !== 1 ? 's' : '');
+export function loadNotes() {
+  let notes = getState('allNotes');
+  const countEl = document.getElementById('noteCount');
+  if (countEl) countEl.textContent = `${notes.length} note${notes.length!==1?'s':''}`;
 
-    var ct = document.getElementById('noteList');
-    if (!ct) return;
+  if (_searchQ) {
+    const q = _searchQ.toLowerCase();
+    notes = notes.filter(n =>
+      (n.title||'').toLowerCase().includes(q) || (n.content||'').toLowerCase().includes(q));
+  }
 
-    if (!allNotes.length) {
-        ct.innerHTML =
-            '<div class="empty">' +
-            '<div class="empty-ic">📓</div>' +
-            '<h3>No Notes Yet</h3>' +
-            '<p>Save supplier numbers, reminders, ideas — anything you want to remember.</p>' +
-            '<button class="empty-btn" onclick="openNoteForm()">+ Write First Note</button>' +
-            '</div>';
-        return;
-    }
+  const pinned = notes.filter(n => n.pinned);
+  const rest   = notes.filter(n => !n.pinned);
+  const sorted = [...pinned, ...rest];
 
-    if (!sorted.length && notebookSearchQuery) {
-        ct.innerHTML =
-            '<div class="empty">' +
-            '<div class="empty-ic">🔍</div>' +
-            '<h3>No Results</h3>' +
-            '<p>No notes found for "' + esc(notebookSearchQuery) + '"</p>' +
-            '</div>';
-        return;
-    }
+  const ct = document.getElementById('noteList');
+  if (!ct) return;
 
-    var h = '';
-    sorted.forEach(function(note, i) {
-        var cat     = noteCats[note.category] || noteCats.general;
-        var preview = (note.content || '').substring(0, 120) + ((note.content || '').length > 120 ? '…' : '');
+  if (!getState('allNotes').length) {
+    ct.innerHTML = `<div class="empty-state">
+      <div class="empty-state__icon">📓</div>
+      <h3>${t('no_notes')}</h3>
+      <p>Save supplier numbers, reminders, ideas — anything you want to remember.</p>
+      <button class="btn btn--primary" onclick="openNoteForm()">+ ${t('add_note')}</button>
+    </div>`;
+    return;
+  }
+  if (!sorted.length && _searchQ) {
+    ct.innerHTML = `<div class="empty-state">
+      <div class="empty-state__icon">🔍</div>
+      <h3>${t('no_notes_search', esc(_searchQ))}</h3>
+    </div>`;
+    return;
+  }
 
-        h += '<div class="note-card' + (note.pinned ? ' note-pinned' : '') + '" style="animation-delay:' + (i * 0.04) + 's">';
-        h += '<div class="note-top">';
-        if (note.title) h += '<div class="note-title">' + esc(note.title) + '</div>';
-        h += '<div class="note-meta">' +
-             '<span class="note-cat">' + cat.icon + ' ' + cat.label + '</span>' +
-             (note.pinned ? '<span class="note-pin-badge">📌</span>' : '') +
-             '</div></div>';
-        h += '<div class="note-body">' + esc(preview) + '</div>';
-        h += '<div class="note-foot">' +
-             '<span class="note-date">' + fmtDateLong(note.date || '') + '</span>' +
-             '<div class="note-acts">';
-        h += '<button class="ic-btn ib-copy" onclick="copyNote(\'' + note.id + '\')" aria-label="Copy note">📋</button>';
-        if (canModify()) {
-            h += '<button class="ic-btn ib-e" onclick="openNoteForm(\'' + note.id + '\')" aria-label="Edit note">✏️</button>';
-            h += '<button class="ic-btn ib-d" onclick="confirmDelNote(\'' + note.id + '\')" aria-label="Delete note">🗑️</button>';
-        }
-        h += '</div></div></div>';
-    });
-    ct.innerHTML = h;
+  ct.innerHTML = sorted.map((note, i) => {
+    const cat     = CATS[note.category] || CATS.general;
+    const preview = (note.content||'').substring(0,120) + ((note.content||'').length>120?'…':'');
+    return `<div class="note-card${note.pinned?' note-card--pinned':''}" style="animation-delay:${i*0.04}s">
+      <div class="note-card__top">
+        ${note.title ? `<div class="note-card__title">${esc(note.title)}</div>` : ''}
+        <div class="note-card__meta">
+          <span class="badge badge--outline">${cat.icon} ${cat.label}</span>
+          ${note.pinned ? '<span class="note-pin-badge" aria-label="Pinned">📌</span>' : ''}
+        </div>
+      </div>
+      <div class="note-card__body">${esc(preview)}</div>
+      <div class="note-card__foot">
+        <span class="note-card__date">${fmtDateLong(note.date||'')}</span>
+        <div class="note-card__actions">
+          <button class="ic-btn" onclick="copyNote('${note.id}')" aria-label="${t('copy')}">📋</button>
+          <button class="ic-btn" onclick="togglePinNote('${note.id}')" aria-label="${note.pinned?t('unpin_note'):t('pin_note')}">${note.pinned?'📍':'📌'}</button>
+          ${canModify()?`<button class="ic-btn" onclick="openNoteForm('${note.id}')" aria-label="${t('edit')}">✏️</button>
+          <button class="ic-btn ic-btn--danger" onclick="deleteNote('${note.id}')" aria-label="${t('delete')}">🗑️</button>`:''}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
 }
 
-function filterNotes(notes, query) {
-    if (!query || !query.trim()) return notes;
-    var q = query.toLowerCase().trim();
-    return notes.filter(function(n) {
-        return (n.title   || '').toLowerCase().indexOf(q) !== -1 ||
-               (n.content || '').toLowerCase().indexOf(q) !== -1;
-    });
+export function searchNotes(v) { _searchDebounced(v); }
+export function clearNoteSearch() {
+  _searchQ = '';
+  const el = document.getElementById('noteSearch');
+  if (el) el.value = '';
+  loadNotes();
 }
 
-var _searchNotesDebounced = null;
-function searchNotes(val) {
-    if (!_searchNotesDebounced) {
-        _searchNotesDebounced = debounce(function(v) {
-            notebookSearchQuery = v || '';
-            loadNotes();
-        }, 250);
-    }
-    _searchNotesDebounced(val);
-}
+export function openNoteForm(id) {
+  clearAllFieldErrors('noteForm');
+  const form = document.getElementById('noteForm');
+  if (form) form.reset();
+  document.getElementById('nfId').value       = '';
+  document.getElementById('nfCategory').value = 'general';
+  document.getElementById('nfPinned').checked  = false;
+  document.getElementById('nfFormTitle').textContent = id ? t('edit_note') : t('add_note');
+  document.querySelectorAll('#noteForm .cat-btn').forEach(b => b.classList.toggle('cat-btn--active', b.dataset.cat==='general'));
 
-function clearNoteSearch() {
-    notebookSearchQuery = '';
-    var el = document.getElementById('noteSearch');
-    if (el) el.value = '';
-    loadNotes();
-}
-
-
-// ============ NOTE FORM ============
-function openNoteForm(id) {
-    var form = document.getElementById('noteForm');
-    if (form) form.reset();
-    document.getElementById('nfId').value       = '';
-    document.getElementById('nfCategory').value = 'general';
-    document.getElementById('nfPinned').checked = false;
-
-    document.querySelectorAll('#noteForm .note-cat-btn').forEach(function(b) {
-        b.classList.remove('active');
-    });
-    var firstCat = document.querySelector('#noteForm .note-cat-btn');
-    if (firstCat) firstCat.classList.add('active');
-
-    var titleEl = document.getElementById('nfFormTitle');
-
-    if (id) {
-        if (titleEl) titleEl.textContent = 'Edit Note';
-        var note = findInArray(allNotes, id);
-        if (note) {
-            document.getElementById('nfId').value       = note.id;
-            document.getElementById('nfTitle').value    = note.title   || '';
-            document.getElementById('nfContent').value  = note.content || '';
-            document.getElementById('nfCategory').value = note.category || 'general';
-            document.getElementById('nfPinned').checked = !!note.pinned;
-            document.querySelectorAll('#noteForm .note-cat-btn').forEach(function(b) {
-                b.classList.toggle('active', b.getAttribute('data-cat') === note.category);
-            });
-        }
-    } else {
-        if (titleEl) titleEl.textContent = 'New Note';
-    }
-
-    openOverlay('noteFormOverlay');
-    setTimeout(function() {
-        var c = document.getElementById('nfContent');
-        if (c) c.focus();
-    }, 350);
-}
-
-function setNoteCategory(cat, btn) {
-    document.getElementById('nfCategory').value = cat;
-    document.querySelectorAll('#noteForm .note-cat-btn').forEach(function(b) {
-        b.classList.remove('active');
-    });
-    btn.classList.add('active');
-}
-
-async function saveNote(e) {
-    e.preventDefault();
-    var content = document.getElementById('nfContent').value.trim();
-    if (!content) { showToast('❌ Note content cannot be empty!', 'error'); return; }
-
-    var data = {
-        title:    document.getElementById('nfTitle').value.trim(),
-        content:  content,
-        category: document.getElementById('nfCategory').value || 'general',
-        pinned:   document.getElementById('nfPinned').checked,
-        date:     todayStr()
-    };
-
-    var btn = document.getElementById('nfSubmitBtn');
-    btnLoading(btn, true);
-    try {
-        var idV = document.getElementById('nfId').value;
-        if (idV) { await fsUpdate('notes', idV, data); showToast('✅ Note updated!'); }
-        else     { await fsAdd('notes', data);          showToast('✅ Note saved!'); }
-        closeOverlay('noteFormOverlay');
-    } catch (err) {
-        console.error('[Notebook]', err);
-        showToast('❌ Error saving note', 'error');
-    } finally {
-        btnLoading(btn, false);
-    }
-}
-
-function confirmDelNote(id) {
-    if (!canModify()) { showToast('❌ Staff cannot delete notes', 'error'); return; }
-    var note    = findInArray(allNotes, id);
+  if (id) {
+    const note = findById(getState('allNotes'), id);
     if (!note) return;
-    var preview = note.title || (note.content || '').substring(0, 40);
-    showConfirm('🗑️', 'Delete Note?', '"' + preview + '" will be permanently deleted.', async function() {
-        try   { await fsDelete('notes', id); showToast('✅ Note deleted!'); }
-        catch (err) { showToast('❌ Error deleting note', 'error'); }
-    });
+    document.getElementById('nfId').value       = note.id;
+    document.getElementById('nfTitle').value    = note.title   || '';
+    document.getElementById('nfContent').value  = note.content || '';
+    document.getElementById('nfCategory').value = note.category|| 'general';
+    document.getElementById('nfPinned').checked  = !!note.pinned;
+    document.querySelectorAll('#noteForm .cat-btn').forEach(b =>
+      b.classList.toggle('cat-btn--active', b.dataset.cat === note.category));
+  }
+  openOverlay('noteFormOverlay');
 }
 
-function copyNote(id) {
-    var note = findInArray(allNotes, id);
-    if (!note) return;
-    var text = (note.title ? note.title + '\n' : '') + (note.content || '');
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(text)
-            .then(function()  { showToast('📋 Note copied to clipboard!'); })
-            .catch(function() { fallbackCopy(text); });
-    } else {
-        fallbackCopy(text);
-    }
+export function closeNoteForm() { closeOverlay('noteFormOverlay'); }
+
+export function setNoteCategory(cat, btn) {
+  document.getElementById('nfCategory').value = cat;
+  document.querySelectorAll('#noteForm .cat-btn').forEach(b => b.classList.remove('cat-btn--active'));
+  btn.classList.add('cat-btn--active');
 }
 
-function fallbackCopy(text) {
-    var ta       = document.createElement('textarea');
-    ta.value     = text;
-    ta.style.cssText = 'position:fixed;top:-9999px;left:-9999px';
-    document.body.appendChild(ta);
-    ta.select();
-    try {
-        document.execCommand('copy');
-        showToast('📋 Note copied!');
-    } catch (e) {
-        showToast('❌ Could not copy note', 'error');
-    }
-    document.body.removeChild(ta);
+export async function saveNote(e) {
+  e.preventDefault();
+  const content = document.getElementById('nfContent')?.value.trim();
+  if (!content) { setFieldError('nfContent', t('note_content_req')); return; }
+
+  const data = {
+    title:    document.getElementById('nfTitle')?.value.trim() || '',
+    content,
+    category: document.getElementById('nfCategory')?.value || 'general',
+    pinned:   document.getElementById('nfPinned')?.checked  || false,
+    date:     todayStr(),
+  };
+  const id  = document.getElementById('nfId')?.value || '';
+  const btn = document.getElementById('nfSubmitBtn');
+  btnLoading(btn, true);
+  try {
+    if (id) { await withRetry(()=>updateDoc(docR('notes',id),data)); showToast(t('note_saved'),'success'); }
+    else    { await withRetry(()=>addDoc(biz('notes'),{...data,createdAt:serverTimestamp()})); showToast(t('note_saved'),'success'); }
+    closeOverlay('noteFormOverlay');
+  } catch (err) { showToast(t('error_save'),'error'); }
+  finally { btnLoading(btn, false); }
 }
 
-console.log('[Notebook] Meri Dukaan v7.0 — Notebook loaded');
+export async function deleteNote(id) {
+  if (!canModify()) { showToast(t('staff_cannot'),'error'); return; }
+  const note = findById(getState('allNotes'), id);
+  if (!note) return;
+  const ok = await showConfirm('🗑️', t('delete'), `"${note.title||note.content.substring(0,40)}" will be deleted.`);
+  if (!ok) return;
+  try { await withRetry(()=>deleteDoc(docR('notes',id))); showToast(t('note_deleted'),'success'); }
+  catch(err) { showToast(t('error_delete'),'error'); }
+}
+
+export async function togglePinNote(id) {
+  const note = findById(getState('allNotes'), id);
+  if (!note) return;
+  await withRetry(()=>updateDoc(docR('notes',id),{ pinned: !note.pinned }));
+}
+
+export function copyNote(id) {
+  const note = findById(getState('allNotes'), id);
+  if (!note) return;
+  const text = (note.title?note.title+'\n':'') + (note.content||'');
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(text).then(()=>showToast(t('note_copied'))).catch(()=>_fallbackCopy(text));
+  } else { _fallbackCopy(text); }
+}
+
+function _fallbackCopy(text) {
+  const ta = document.createElement('textarea');
+  ta.value = text; ta.style.cssText='position:fixed;top:-9999px';
+  document.body.appendChild(ta); ta.select();
+  try { document.execCommand('copy'); showToast(t('note_copied')); }
+  catch { showToast(t('err_generic'),'error'); }
+  document.body.removeChild(ta);
+}
+
+const _globals = { loadNotes, searchNotes, clearNoteSearch, openNoteForm, closeNoteForm, saveNote, deleteNote, togglePinNote, copyNote, setNoteCategory };
+Object.assign(window, _globals);
+console.log('[notebook] Meri Dukaan v8.0 ready');

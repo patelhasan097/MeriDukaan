@@ -1,89 +1,41 @@
 {
-    "name": "Meri Dukaan - Business Manager",
-    "short_name": "Meri Dukaan",
-    "description": "Roti Business Management App — Track sales, expenses, credit & generate reports.",
-
-    "start_url": "./",
-    "scope": "./",
-    "id": "meri-dukaan-v7",
-
-    "display": "standalone",
-    "display_override": ["standalone", "minimal-ui"],
-
-    "orientation": "portrait",
-    "background_color": "#121212",
-    "theme_color": "#1a1a2e",
-
-    "categories": ["business", "finance", "productivity"],
-    "dir": "ltr",
-    "lang": "en",
-    "prefer_related_applications": false,
-
-    "icons": [
-        {
-            "src": "icons/icon-192.png",
-            "sizes": "192x192",
-            "type": "image/png",
-            "purpose": "any"
-        },
-        {
-            "src": "icons/icon-512.png",
-            "sizes": "512x512",
-            "type": "image/png",
-            "purpose": "any"
-        },
-        {
-            "src": "icons/icon-maskable-192.png",
-            "sizes": "192x192",
-            "type": "image/png",
-            "purpose": "maskable"
-        },
-        {
-            "src": "icons/icon-maskable-512.png",
-            "sizes": "512x512",
-            "type": "image/png",
-            "purpose": "maskable"
-        }
-    ],
-
-    "screenshots": [
-        {
-            "src": "icons/screenshot-wide.png",
-            "sizes": "1280x720",
-            "type": "image/png",
-            "form_factor": "wide",
-            "label": "Dashboard view of Meri Dukaan"
-        },
-        {
-            "src": "icons/screenshot-narrow.png",
-            "sizes": "390x844",
-            "type": "image/png",
-            "form_factor": "narrow",
-            "label": "Mobile dashboard view"
-        }
-    ],
-
-    "shortcuts": [
-        {
-            "name": "Quick Sale",
-            "short_name": "Quick Sale",
-            "description": "Open daily order entry",
-            "url": "./?screen=quickSaleScreen",
-            "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }]
-        },
-        {
-            "name": "New Sale",
-            "short_name": "New Sale",
-            "description": "Record a new sale",
-            "url": "./?screen=salesScreen",
-            "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }]
-        },
-        {
-            "name": "Reports",
-            "short_name": "Reports",
-            "description": "View business reports",
-            "url": "./?screen=reportScreen",
-            "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }]
-        }
-    ]
+  "name": "Meri Dukaan — Business Manager",
+  "short_name": "Meri Dukaan",
+  "description": "Roti Business PWA — Sales, Credit, Expenses, Analytics. Free forever.",
+  "start_url": "./",
+  "scope": "./",
+  "id": "meri-dukaan-v8",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "portrait",
+  "background_color": "#0d0e18",
+  "theme_color": "#e65100",
+  "categories": ["business", "finance", "productivity"],
+  "dir": "ltr",
+  "lang": "en",
+  "prefer_related_applications": false,
+  "icons": [
+    { "src": "icons/icon-72.png",            "sizes": "72x72",   "type": "image/png" },
+    { "src": "icons/icon-96.png",            "sizes": "96x96",   "type": "image/png" },
+    { "src": "icons/icon-128.png",           "sizes": "128x128", "type": "image/png" },
+    { "src": "icons/icon-192.png",           "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png",           "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-192.png",  "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "icons/icon-maskable-512.png",  "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "screenshots": [
+    { "src": "icons/screenshot-narrow.png", "sizes": "390x844",  "type": "image/png", "form_factor": "narrow", "label": "Dashboard" },
+    { "src": "icons/screenshot-wide.png",   "sizes": "1280x720", "type": "image/png", "form_factor": "wide",   "label": "Desktop view" }
+  ],
+  "shortcuts": [
+    { "name": "Quick Sale",  "url": "./?screen=quickSaleScreen",  "icons": [{"src":"icons/icon-192.png","sizes":"192x192"}] },
+    { "name": "New Sale",    "url": "./?screen=salesScreen",       "icons": [{"src":"icons/icon-192.png","sizes":"192x192"}] },
+    { "name": "Credit",      "url": "./?screen=creditScreen",      "icons": [{"src":"icons/icon-192.png","sizes":"192x192"}] },
+    { "name": "Reports",     "url": "./?screen=reportScreen",      "icons": [{"src":"icons/icon-192.png","sizes":"192x192"}] }
+  ],
+  "share_target": {
+    "action": "./",
+    "method": "GET",
+    "params": { "title": "title", "text": "text" }
+  }
 }

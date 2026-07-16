@@ -1,1372 +1,1126 @@
 /* ================================================
-   MERI DUKAAN v7.0 — DATA
-   Dashboard · Quick Sale · Customers · Sales
-   Expenses · Waste · Credit
-
-   PHASE 1 FIXES:
-   ✅ markAllFixedDone — _markAllInProgress guard prevents
-      duplicate Firestore writes from rapid-tap race condition
-   ✅ enterBatchMode / exitBatchMode — fixed null-reference
-      crash on getElementById('batchBtn') which didn't exist;
-      now targets the correct id="batchModeBtn"
-   ✅ batchDeleteSelected — rewrote using Firestore batch
-      writes (was sequential awaits — O(n) network calls)
-   ✅ loadCredit — advance section visibility uses the
-      correctly-renamed id="cAdvanceSep" separator
-   ✅ All user-facing strings are in English
+   MERI DUKAAN v8.0 — DATA OPERATIONS
+   Sales · Customers · Expenses · Waste · Credit
+   Batch writes · Soft delete · Inline validation
+   WhatsApp · UPI · Customer statement
    ================================================ */
 
+import { getFirestore, doc, addDoc, updateDoc,
+         deleteDoc, writeBatch, collection,
+         serverTimestamp, query, where, orderBy,
+         getDocs }                              from 'firebase/firestore';
+import { db }                                   from './auth.js';
+import { getState, setState, canModify,
+         requireBizId }                         from './state.js';
+import { t }                                    from './i18n.js';
+import { showToast, showConfirm, openOverlay,
+         closeOverlay, setFieldError, clearAllFieldErrors,
+         btnLoading, showSkeletons, todayStr,
+         fmtCurrency, fmtDate, fmtDateLong,
+         fmtRelativeDate, esc, debounce,
+         findById, withRetry, dataInRange,
+         buildWhatsAppLink, buildUpiLink,
+         shareContent, daysBetween }            from './core.js';
 
-// ============ FORM HELPERS ============
-function setPayType(hid, val, btn) {
-    var el = document.getElementById(hid);
-    if (el) el.value = val;
-    btn.parentElement.querySelectorAll('.tgl').forEach(function(b) {
-        b.classList.remove('active');
-        b.setAttribute('aria-pressed', 'false');
-    });
-    btn.classList.add('active');
-    btn.setAttribute('aria-pressed', 'true');
+// ── Firestore collection ref ─────────────────────────────────────────────
+const biz  = (col) => collection(db, 'businesses', requireBizId(), col);
+const docR = (col, id) => doc(db, 'businesses', requireBizId(), col, id);
+
+// ── Soft Delete Queue ────────────────────────────────────────────────────
+const _undoQueue = new Map();  // id → { col, data, timer }
+
+async function softDelete(col, id, label) {
+  // Mark as deleted in Firestore (hidden by listener query)
+  await withRetry(() => updateDoc(docR(col, id), {
+    deleted: true, deletedAt: serverTimestamp()
+  }));
+  // Show UNDO toast for 5 seconds
+  showToast(`${label} ${t('sale_deleted')} — `, 'info', 5100);
+  const undoBtn = document.getElementById('toastUndoBtn');
+  if (undoBtn) {
+    undoBtn.style.display = 'inline';
+    undoBtn.onclick = () => _undoDelete(col, id, undoBtn);
+    const timer = setTimeout(async () => {
+      // Permanently delete after 5s
+      _undoQueue.delete(id);
+      if (undoBtn) undoBtn.style.display = 'none';
+      await withRetry(() => deleteDoc(docR(col, id)));
+    }, 5000);
+    _undoQueue.set(id, { col, timer });
+  }
 }
-function setOrderType(t, btn) {
-    document.getElementById('cfOrderType').value = t;
-    document.querySelectorAll('#customerForm .tgl').forEach(function(b) {
-        b.classList.remove('active');
-        b.setAttribute('aria-pressed', 'false');
-    });
-    btn.classList.add('active');
-    btn.setAttribute('aria-pressed', 'true');
-    document.getElementById('fixedQtyGroup').style.display = t === 'fixed' ? 'block' : 'none';
-    if (t !== 'fixed') document.getElementById('cfQty').value = '';
+
+async function _undoDelete(col, id, btn) {
+  const entry = _undoQueue.get(id);
+  if (!entry) return;
+  clearTimeout(entry.timer);
+  _undoQueue.delete(id);
+  if (btn) btn.style.display = 'none';
+  await withRetry(() => updateDoc(docR(col, id), { deleted: false, deletedAt: null }));
+  showToast('↩️ ' + t('undo'), 'success');
 }
-function setSaleType(type, btn) {
-    document.getElementById('sfType').value = type;
-    btn.parentElement.querySelectorAll('.tgl').forEach(function(b) {
-        b.classList.remove('active');
-        b.setAttribute('aria-pressed', 'false');
-    });
-    btn.classList.add('active');
-    btn.setAttribute('aria-pressed', 'true');
-    document.getElementById('sfCustGroup').style.display   = type === 'regular' ? 'block' : 'none';
-    document.getElementById('sfWalkinGroup').style.display = type === 'walkin'  ? 'block' : 'none';
-    var warn = document.getElementById('sfDupWarn');
-    if (warn) warn.style.display = 'none';
-    if (type === 'walkin') {
-        document.getElementById('sfRate').removeAttribute('readonly');
-        document.getElementById('sfQty').value          = '';
-        document.getElementById('sfCustomerId').value   = '';
-        document.getElementById('sfCustomerName').value = '';
-        document.getElementById('sfRate').value         = localStorage.getItem('mdLastWalkinRate') || '';
-    } else {
-        document.getElementById('sfRate').setAttribute('readonly', 'readonly');
+
+// ── SALES ────────────────────────────────────────────────────────────────
+let _saleFormDate = todayStr();
+let _saleFormCustId = '';
+let _lastPayTypes = {};  // custId → payType (remembered per customer)
+
+export function openSaleForm(id) {
+  if (!canModify() && !id) { showToast(t('staff_cannot'), 'error'); return; }
+  clearAllFieldErrors('saleForm');
+  const form = document.getElementById('saleForm');
+  if (form) form.reset();
+  const isEdit = !!id;
+
+  document.getElementById('sfTitle').textContent = isEdit ? t('edit_sale') : t('add_sale');
+  document.getElementById('sfId').value    = '';
+  document.getElementById('sfDate').value  = todayStr();
+  _saleFormDate   = todayStr();
+  _saleFormCustId = '';
+
+  if (isEdit) {
+    const sale = findById(getState('allSales'), id);
+    if (!sale) return;
+    document.getElementById('sfId').value    = sale.id;
+    document.getElementById('sfDate').value  = sale.date;
+    document.getElementById('sfQty').value   = sale.qty;
+    document.getElementById('sfRate').value  = sale.rate;
+    document.getElementById('sfPay').value   = sale.payType;
+    _saleFormDate   = sale.date;
+    _saleFormCustId = sale.customerId;
+    // Pre-select customer in picker
+    _updateCustPicker(sale.customerId);
+  } else {
+    _updateCustPicker('');
+  }
+  _calcSaleTotal();
+  openOverlay('saleFormOverlay');
+}
+
+export function closeSaleForm() { closeOverlay('saleFormOverlay'); }
+
+// Live total calculation
+export function calcSaleTotal() { _calcSaleTotal(); }
+function _calcSaleTotal() {
+  const qty  = parseInt(document.getElementById('sfQty')?.value || '0', 10);
+  const rate = parseFloat(document.getElementById('sfRate')?.value || '0');
+  const tot  = isNaN(qty) || isNaN(rate) ? 0 : qty * rate;
+  const el   = document.getElementById('sfTotal');
+  if (el) el.textContent = fmtCurrency(tot);
+
+  // Update UPI collect button
+  const upiBtn = document.getElementById('sfUpiBtn');
+  const upiVpa = getState('upiVpa');
+  if (upiBtn) {
+    upiBtn.style.display = (upiVpa && tot > 0) ? 'flex' : 'none';
+    upiBtn.textContent   = t('collect_upi', fmtCurrency(tot).replace('₹',''));
+  }
+}
+
+export function openUpiCollect() {
+  const qty    = parseInt(document.getElementById('sfQty')?.value || '0', 10);
+  const rate   = parseFloat(document.getElementById('sfRate')?.value || '0');
+  const amount = qty * rate;
+  const upiVpa = getState('upiVpa');
+  const bizName= getState('businessName');
+  if (!upiVpa || !amount) return;
+  window.open(buildUpiLink(upiVpa, bizName, amount), '_blank');
+}
+
+export async function saveSale(e) {
+  e.preventDefault();
+  clearAllFieldErrors('saleForm');
+
+  // ── Validation ──
+  let valid = true;
+  const custId = _saleFormCustId;
+  const date   = document.getElementById('sfDate')?.value || todayStr();
+  const qtyRaw = document.getElementById('sfQty')?.value || '';
+  const rate   = parseFloat(document.getElementById('sfRate')?.value || '');
+  const payType= document.getElementById('sfPay')?.value || 'cash';
+  const id     = document.getElementById('sfId')?.value || '';
+
+  if (!custId)                    { setFieldError('sfCustDisplay', t('err_select_cust'));  valid = false; }
+  if (!qtyRaw)                    { setFieldError('sfQty', t('err_qty_required'));          valid = false; }
+  const qty = parseInt(qtyRaw, 10);
+  if (isNaN(qty) || qty < 1 || qty > 9999) { setFieldError('sfQty', t('err_qty_range')); valid = false; }
+  if (isNaN(rate) || rate <= 0)   { setFieldError('sfRate', t('err_rate_required'));        valid = false; }
+  if (!valid) return;
+
+  // Duplicate check (same customer, same date) — only for new sales
+  if (!id) {
+    const existing = getState('allSales').find(s => s.customerId === custId && s.date === date && !s.deleted);
+    if (existing) {
+      const ok = await showConfirm('⚠️', t('sale_duplicate_warn'), '', {
+        yesLabel: 'Yes, add another', noLabel: t('cancel'), danger: false
+      });
+      if (!ok) return;
     }
-    calcSaleTotal();
-}
-function setExpCat(cat, btn) {
-    document.getElementById('efCat').value = cat;
-    document.querySelectorAll('#expForm .cat').forEach(function(b) { b.classList.remove('active'); });
-    btn.classList.add('active');
-    setExpCatUI(cat);
-    if (typeof showLastRate === 'function') showLastRate(cat);
-}
-function setExpCatUI(cat) {
-    document.getElementById('efDetailGrp').style.display  = cat === 'other' ? 'block' : 'none';
-    document.getElementById('efWeightGrp').style.display  = (cat === 'atta' || cat === 'oil') ? 'block' : 'none';
-}
-function setWasteReason(reason, btn) {
-    document.getElementById('wfReason').value = reason;
-    document.querySelectorAll('#wasteForm .cat').forEach(function(b) { b.classList.remove('active'); });
-    btn.classList.add('active');
-}
-function calcSaleTotal() {
-    var r  = parseFloat(document.getElementById('sfRate').value) || 0;
-    var q  = parseInt(document.getElementById('sfQty').value, 10) || 0;
-    var el = document.getElementById('sfTotal');
-    if (el) el.textContent = '₹' + (r * q);
-}
+  }
 
+  const data = { customerId: custId, date, qty, rate, total: qty * rate, payType, deleted: false };
+  const btn  = document.getElementById('sfSubmitBtn');
+  btnLoading(btn, true);
 
-// ============ DASHBOARD ============
-function setPeriod(period, btn) {
-    currentPeriod = period;
-    document.querySelectorAll('.pt').forEach(function(b) {
-        b.classList.remove('active');
-        b.setAttribute('aria-selected', 'false');
-    });
-    btn.classList.add('active');
-    btn.setAttribute('aria-selected', 'true');
-    refreshDash();
-}
-
-function refreshDash() {
-    var now    = new Date();
-    var days   = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
-    var months = ['January','February','March','April','May','June',
-                  'July','August','September','October','November','December'];
-
-    var dateEl = document.getElementById('todayDate');
-    if (dateEl) dateEl.textContent =
-        days[now.getDay()] + ', ' + now.getDate() + ' ' + months[now.getMonth()] + ' ' + now.getFullYear();
-
-    var hr      = now.getHours();
-    var greetEl = document.getElementById('dashGreeting');
-    if (greetEl) greetEl.textContent =
-        hr < 12 ? 'Good Morning!' : hr < 17 ? 'Good Afternoon!' : 'Good Evening!';
-
-    var range = getDateRange(currentPeriod);
-    var fs    = dataInRange(allSales,    range.start, range.end);
-    var fe    = dataInRange(allExpenses, range.start, range.end);
-    var fw    = dataInRange(allWaste,    range.start, range.end);
-
-    var roti = 0, inc = 0, exp = 0, wasteQty = 0;
-    fs.forEach(function(s) { roti += s.quantity; inc += s.total; });
-    fe.forEach(function(x) { exp  += x.amount; });
-    fw.forEach(function(w) { wasteQty += (w.quantity || 0); });
-    var profit = inc - exp;
-
-    var el;
-    el = document.getElementById('dRoti');    if (el) el.textContent = roti;
-    el = document.getElementById('dIncome');  if (el) el.textContent = '₹' + inc;
-    el = document.getElementById('dExpense'); if (el) el.textContent = '₹' + exp;
-
-    var pEl = document.getElementById('dProfit');
-    if (pEl) {
-        pEl.textContent = (profit >= 0 ? '₹' : '-₹') + Math.abs(profit);
-        pEl.className   = profit >= 0 ? '' : 'neg';
-    }
-    el = document.getElementById('dWaste'); if (el) el.textContent = wasteQty;
-
-    // Credit pending total (scans all-time credit — acceptable for dashboard)
-    var creditByCust = {};
-    allSales.forEach(function(s) {
-        if (s.paymentType === 'credit') {
-            var key = s.customerId || '__walkin__';
-            if (!creditByCust[key]) creditByCust[key] = { g: 0, r: 0 };
-            creditByCust[key].g += s.total;
-        }
-    });
-    allCreditPayments.forEach(function(p) {
-        var key = p.customerId || '__walkin__';
-        if (creditByCust[key]) creditByCust[key].r += p.amount;
-    });
-    var tcp = 0;
-    Object.values(creditByCust).forEach(function(c) { tcp += Math.max(0, c.g - c.r); });
-    el = document.getElementById('dCredit'); if (el) el.textContent = '₹' + tcp;
-
-    // Recent sales (last 5 today)
-    var todaySalesList = salesForDate(todayStr());
-    var rs = document.getElementById('recentSales');
-    if (rs) {
-        if (!todaySalesList.length) {
-            rs.innerHTML = '<div class="no-data">No sales today</div>';
-        } else {
-            var h = '';
-            todaySalesList.slice(-5).reverse().forEach(function(s) {
-                var pi = s.paymentType === 'cash' ? '💵' : s.paymentType === 'upi' ? '📱' : '💳';
-                h += '<div class="aw-item">' +
-                     '<span class="aw-item-n">' + esc(s.customerName || 'Walk-in') + ' (' + s.quantity + ')</span>' +
-                     '<span class="aw-item-v inc">' + pi + ' ₹' + s.total + '</span></div>';
-            });
-            rs.innerHTML = h;
-        }
-    }
-
-    // Recent expenses (last 5 today)
-    var todayExpsList = expensesForDate(todayStr());
-    var re = document.getElementById('recentExp');
-    if (re) {
-        if (!todayExpsList.length) {
-            re.innerHTML = '<div class="no-data">No expenses today</div>';
-        } else {
-            var h2 = '';
-            todayExpsList.slice(-5).reverse().forEach(function(x) {
-                h2 += '<div class="aw-item">' +
-                      '<span class="aw-item-n">' + catIc(x.category) + ' ' + catNm(x.category) + '</span>' +
-                      '<span class="aw-item-v exp">-₹' + x.amount + '</span></div>';
-            });
-            re.innerHTML = h2;
-        }
-    }
-
-    if (typeof renderSmartInsights === 'function') renderSmartInsights();
-}
-
-
-// ============ QUICK SALE ============
-function loadQuickSale() {
-    var today    = todayStr();
-    var labelEl  = document.getElementById('quickDateLabel');
-    if (labelEl) labelEl.textContent = '📅 ' + fmtDateLong(today);
-
-    var todaySales = salesForDate(today);
-    var saleMap    = {};
-    todaySales.forEach(function(s) { if (s.customerId) saleMap[s.customerId] = s; });
-
-    // Preserve unsaved form input across re-renders
-    var pendingInputs = {};
-    allCustomers.forEach(function(c) {
-        if (saleMap[c.id]) return;
-        var qtyEl = document.getElementById('qq_' + c.id);
-        var payEl = document.getElementById('qp_' + c.id);
-        if (qtyEl && qtyEl.value) {
-            pendingInputs[c.id] = {
-                qty: qtyEl.value,
-                pay: payEl ? payEl.getAttribute('data-pay') : 'cash'
-            };
-        }
-    });
-
-    var doneCount = 0, pendingCount = 0, totalAmt = 0;
-    todaySales.forEach(function(s) { totalAmt += s.total; });
-    allCustomers.forEach(function(c) { if (saleMap[c.id]) doneCount++; else pendingCount++; });
-
-    var el;
-    el = document.getElementById('qsDone');    if (el) el.textContent = doneCount;
-    el = document.getElementById('qsPending'); if (el) el.textContent = pendingCount;
-    el = document.getElementById('qsTotal');   if (el) el.textContent = '₹' + totalAmt;
-
-    var listEl = document.getElementById('quickSaleList');
-    if (!listEl) return;
-
-    if (!allCustomers.length) {
-        listEl.innerHTML =
-            '<div class="empty"><div class="empty-ic">👥</div>' +
-            '<h3>No Customers</h3>' +
-            '<p>Add customers first to use Quick Sale</p>' +
-            '<button class="empty-btn" onclick="goTo(\'customerScreen\')">Add Customer</button></div>';
-        return;
-    }
-
-    var h = '';
-    allCustomers.forEach(function(c, i) {
-        var isDone  = !!saleMap[c.id];
-        var sale    = saleMap[c.id];
-        var isFixed = c.orderType === 'fixed';
-        // FIX: for completed orders, show actual sale.quantity (not c.fixedQty)
-        // This prevents the "250 roti shown but amount = 220×₹5 = ₹1100" mismatch
-        var displayQty = isDone ? sale.quantity : (isFixed ? c.fixedQty : '');
-        var amt        = isDone ? sale.total    : (displayQty ? displayQty * c.rate : 0);
-
-        h += '<div class="quick-row' + (isDone ? ' done' : '') + '" style="animation-delay:' + (i * 0.03) + 's">';
-        h += '<div class="qr-info">';
-        h += '<div class="qr-name">' + esc(c.name) + '</div>';
-        // FIX: show actual qty for done orders, template qty for pending
-        h += '<div class="qr-details">' + (isFixed ? '📋 Fixed • ' + displayQty + ' roti' : '🔄 Variable') + '</div>';
-        h += '<div class="qr-rate">₹' + c.rate + '/roti</div>';
-        h += '</div>';
-
-        if (isDone) {
-            h += '<div class="qr-amt">₹' + amt + '</div>' +
-                 '<button class="qr-status" disabled aria-label="Completed">✅</button>';
-        } else {
-            h += '<input type="number" class="qr-qty" id="qq_' + c.id + '" ' +
-                 'value="' + (displayQty || '') + '" ' +
-                 (isFixed ? '' : 'placeholder="Qty"') +
-                 ' min="1" inputmode="numeric"' +
-                 ' data-cid="' + c.id + '" data-rate="' + c.rate + '"' +
-                 ' oninput="quickCalcAmt(this)">';
-            h += '<button class="qr-pay" id="qp_' + c.id + '" data-pay="cash"' +
-                 ' data-cid="' + c.id + '" onclick="cycleQuickPay(this)" aria-label="Payment type">💵</button>';
-            h += '<div class="qr-amt" id="qa_' + c.id + '">₹' + amt + '</div>';
-            h += '<button class="qr-status"' +
-                 ' data-cid="' + c.id + '" data-rate="' + c.rate + '"' +
-                 ' onclick="quickSaveSaleBtn(this)"' +
-                 ' aria-label="Save sale for ' + esc(c.name) + '">💾</button>';
-        }
-        h += '</div>';
-    });
-    listEl.innerHTML = h;
-
-    // Restore preserved form inputs
-    Object.keys(pendingInputs).forEach(function(cid) {
-        var saved  = pendingInputs[cid];
-        var qtyEl  = document.getElementById('qq_' + cid);
-        var payEl  = document.getElementById('qp_' + cid);
-        var amtEl  = document.getElementById('qa_' + cid);
-        if (qtyEl) {
-            qtyEl.value = saved.qty;
-            var c = findInArray(allCustomers, cid);
-            if (c && amtEl) amtEl.textContent = '₹' + (parseInt(saved.qty, 10) * c.rate);
-        }
-        if (payEl) {
-            payEl.setAttribute('data-pay', saved.pay);
-            payEl.textContent = saved.pay === 'cash' ? '💵' : saved.pay === 'upi' ? '📱' : '💳';
-        }
-    });
-}
-
-function quickCalcAmt(el) {
-    var rate  = parseFloat(el.getAttribute('data-rate')) || 0;
-    var qty   = parseInt(el.value, 10) || 0;
-    var amtEl = document.getElementById('qa_' + el.getAttribute('data-cid'));
-    if (amtEl) amtEl.textContent = '₹' + (qty * rate);
-}
-function cycleQuickPay(btn) {
-    var cur  = btn.getAttribute('data-pay');
-    var next, icon;
-    if      (cur === 'cash') { next = 'upi';    icon = '📱'; }
-    else if (cur === 'upi')  { next = 'credit'; icon = '💳'; }
-    else                     { next = 'cash';   icon = '💵'; }
-    btn.setAttribute('data-pay', next);
-    btn.textContent = icon;
-}
-function quickSaveSaleBtn(btn) {
-    var cid  = btn.getAttribute('data-cid');
-    var rate = parseFloat(btn.getAttribute('data-rate')) || 0;
-    var cust = findInArray(allCustomers, cid);
-    if (!cust) { showToast('❌ Customer not found', 'error'); return; }
-    quickSaveSale(cid, cust.name, rate, btn);
-}
-async function quickSaveSale(custId, custName, rate, btn) {
-    var qtyEl   = document.getElementById('qq_' + custId);
-    var qty     = parseInt(qtyEl ? qtyEl.value : 0, 10) || 0;
-    if (qty < 1) { showToast('❌ Enter quantity!', 'error'); return; }
-    var payBtn  = document.getElementById('qp_' + custId);
-    var payType = payBtn ? payBtn.getAttribute('data-pay') : 'cash';
-    if (btn) { btn.disabled = true; btn.textContent = '⏳'; }
-    try {
-        await fsAdd('sales', {
-            customerId:  custId,
-            customerName: custName,
-            date:         todayStr(),
-            rate:         rate,
-            quantity:     qty,
-            total:        rate * qty,
-            paymentType:  payType,
-            saleType:     'regular',
-            source:       'quick'
-        });
-        showToast('✅ ' + custName + ' — ' + qty + ' roti saved!');
-    } catch (err) {
-        console.error('[QuickSale]', err);
-        showToast('❌ Error saving sale', 'error');
-        if (btn) { btn.disabled = false; btn.textContent = '💾'; }
-    }
-}
-
-/**
- * markAllFixedDone — FIX: race condition guard
- *
- * BUG: If the user tapped "Mark All Done" and the Firestore listener hadn't
- * yet updated allSales before the confirm fired, re-running the function
- * would find the same "pending" customers and save duplicate records.
- *
- * FIX: _markAllInProgress flag ensures only one execution at a time.
- */
-var _markAllInProgress = false;
-
-async function markAllFixedDone() {
-    if (_markAllInProgress) {
-        showToast('⏳ Already saving, please wait...', 'warning');
-        return;
-    }
-    var today       = todayStr();
-    var todaySales  = salesForDate(today);
-    var saleMap     = {};
-    todaySales.forEach(function(s) { if (s.customerId) saleMap[s.customerId] = true; });
-
-    var pending = allCustomers.filter(function(c) {
-        return c.orderType === 'fixed' && c.fixedQty > 0 && !saleMap[c.id];
-    });
-    if (!pending.length) { showToast('✅ All fixed orders are already done!'); return; }
-
-    showConfirm('✅', 'Mark All Done?',
-        pending.length + ' fixed orders will be saved as Cash.',
-        async function() {
-            // Guard: set flag immediately inside the callback
-            if (_markAllInProgress) return;
-            _markAllInProgress = true;
-
-            var qaBtn = document.querySelector('.qa-btn');
-            if (qaBtn) { qaBtn.disabled = true; qaBtn.textContent = '⏳ Saving...'; }
-
-            try {
-                // Re-check pending list at save-time to avoid saving already-saved records
-                // (listener may have updated allSales since user tapped confirm)
-                var freshSales   = salesForDate(today);
-                var freshSaleMap = {};
-                freshSales.forEach(function(s) { if (s.customerId) freshSaleMap[s.customerId] = true; });
-
-                var toSave = pending.filter(function(c) { return !freshSaleMap[c.id]; });
-                if (!toSave.length) {
-                    showToast('✅ All fixed orders are already done!');
-                    return;
-                }
-
-                for (var i = 0; i < toSave.length; i++) {
-                    var c = toSave[i];
-                    await fsAdd('sales', {
-                        customerId:   c.id,
-                        customerName: c.name,
-                        date:         today,
-                        rate:         c.rate,
-                        quantity:     c.fixedQty,
-                        total:        c.rate * c.fixedQty,
-                        paymentType:  'cash',
-                        saleType:     'regular',
-                        source:       'quick'
-                    });
-                }
-                showToast('✅ ' + toSave.length + ' orders saved!');
-            } catch (err) {
-                console.error('[MarkAll]', err);
-                showToast('❌ Error saving orders', 'error');
-            } finally {
-                _markAllInProgress = false;
-                if (qaBtn) { qaBtn.disabled = false; qaBtn.textContent = '✅ Mark All Fixed as Done'; }
-            }
-        }
-    );
-}
-
-
-// ============ CUSTOMERS ============
-function loadCusts() {
-    var countEl = document.getElementById('custCount');
-    if (countEl) countEl.textContent = allCustomers.length + ' Customer' + (allCustomers.length !== 1 ? 's' : '');
-    var ct = document.getElementById('customerList');
-    if (!ct) return;
-    if (!allCustomers.length) {
-        ct.innerHTML =
-            '<div class="empty"><div class="empty-ic">👥</div>' +
-            '<h3>No Customers</h3><p>Add your first customer to get started</p>' +
-            '<button class="empty-btn" onclick="openCustomerForm()">+ Add Customer</button></div>';
-        return;
-    }
-    var h = '';
-    allCustomers.forEach(function(c, i) {
-        var tt = c.orderType === 'fixed' ? '📋 Fixed: ' + c.fixedQty + '/day' : '🔄 Variable';
-        var tc = c.orderType === 'fixed' ? 'cb-f' : 'cb-v';
-        h += '<div class="c-card" style="animation-delay:' + (i * 0.04) + 's"' +
-             ' onclick="openCustomerProfile(\'' + c.id + '\')" role="button" tabindex="0"' +
-             ' aria-label="View ' + esc(c.name) + ' profile">';
-        h += '<div class="c-info"><div class="c-name">' + esc(c.name) + '</div>';
-        h += '<div class="c-dets"><span class="c-b cb-r">₹' + c.rate + '/roti</span>' +
-             '<span class="c-b ' + tc + '">' + tt + '</span></div>';
-        if (c.phone) h += '<div class="c-ph">📱 ' + esc(c.phone) + '</div>';
-        h += '</div>';
-        if (canModify()) {
-            h += '<div class="c-acts">' +
-                 '<button class="ic-btn ib-e" onclick="event.stopPropagation();openCustomerForm(\'' + c.id + '\')" aria-label="Edit">✏️</button>' +
-                 '<button class="ic-btn ib-d" onclick="event.stopPropagation();confirmDelCust(\'' + c.id + '\')" aria-label="Delete">🗑️</button>' +
-                 '</div>';
-        }
-        h += '</div>';
-    });
-    ct.innerHTML = h;
-}
-function openCustomerForm(id) {
-    var form = document.getElementById('customerForm');
-    if (form) form.reset();
-    document.getElementById('cfId').value        = '';
-    document.getElementById('cfOrderType').value = 'fixed';
-    document.getElementById('fixedQtyGroup').style.display = 'block';
-    var tg = document.querySelectorAll('#customerForm .tgl');
-    tg.forEach(function(b) { b.classList.remove('active'); b.setAttribute('aria-pressed', 'false'); });
-    if (tg[0]) { tg[0].classList.add('active'); tg[0].setAttribute('aria-pressed', 'true'); }
+  try {
     if (id) {
-        document.getElementById('cfTitle').textContent = 'Edit Customer';
-        var c = findInArray(allCustomers, id);
-        if (c) {
-            document.getElementById('cfId').value        = c.id;
-            document.getElementById('cfName').value      = c.name;
-            document.getElementById('cfRate').value      = c.rate;
-            document.getElementById('cfPhone').value     = c.phone || '';
-            document.getElementById('cfOrderType').value = c.orderType || 'fixed';
-            document.getElementById('cfQty').value       = c.fixedQty || '';
-            tg.forEach(function(b) { b.classList.remove('active'); b.setAttribute('aria-pressed', 'false'); });
-            if (c.orderType === 'variable') {
-                if (tg[1]) { tg[1].classList.add('active'); tg[1].setAttribute('aria-pressed', 'true'); }
-                document.getElementById('fixedQtyGroup').style.display = 'none';
-            } else {
-                if (tg[0]) { tg[0].classList.add('active'); tg[0].setAttribute('aria-pressed', 'true'); }
-            }
-        }
+      await withRetry(() => updateDoc(docR('sales', id), data));
+      showToast(t('sale_updated'), 'success');
     } else {
-        document.getElementById('cfTitle').textContent = 'New Customer';
+      await withRetry(() => addDoc(biz('sales'), { ...data, createdAt: serverTimestamp() }));
+      showToast(t('sale_saved'), 'success');
     }
-    openOverlay('customerFormOverlay');
+    // Remember payment type for this customer
+    _lastPayTypes[custId] = payType;
+    closeOverlay('saleFormOverlay');
+  } catch (err) {
+    console.error('[data] saveSale', err);
+    showToast(t('error_save'), 'error');
+  } finally {
+    btnLoading(btn, false);
+  }
 }
-async function saveCustomer(e) {
-    e.preventDefault();
-    var n  = document.getElementById('cfName').value.trim();
-    var r  = parseFloat(document.getElementById('cfRate').value);
-    var ot = document.getElementById('cfOrderType').value;
-    var fq = ot === 'fixed' ? parseInt(document.getElementById('cfQty').value, 10) : null;
-    if (!n)                            { showToast('❌ Enter customer name!', 'error');      return; }
-    if (!r || r <= 0)                  { showToast('❌ Rate must be positive!', 'error');    return; }
-    if (ot === 'fixed' && (!fq||fq<1)) { showToast('❌ Enter daily roti count!', 'error');  return; }
-    var data = { name: n, rate: r, phone: document.getElementById('cfPhone').value.trim(), orderType: ot, fixedQty: fq };
-    var btn  = document.getElementById('cfSubmitBtn');
-    btnLoading(btn, true);
-    try {
-        var idV = document.getElementById('cfId').value;
-        if (idV) { await fsUpdate('customers', idV, data); showToast('✅ ' + n + ' updated!'); }
-        else     { await fsAdd('customers', data);          showToast('✅ ' + n + ' added!'); }
-        closeOverlay('customerFormOverlay');
-    } catch (err) {
-        console.error('[Customer]', err);
-        showToast('❌ Error saving customer', 'error');
-    } finally {
-        btnLoading(btn, false);
+
+export async function deleteSale(id) {
+  if (!canModify()) { showToast(t('staff_cannot'), 'error'); return; }
+  const sale = findById(getState('allSales'), id);
+  if (!sale) return;
+  const cust = findById(getState('allCustomers'), sale.customerId);
+  await softDelete('sales', id, cust?.name || 'Sale');
+}
+
+// ── Sales List Rendering ─────────────────────────────────────────────────
+let _salesFilter = 'all';
+let _salesSort   = 'newest';
+let _salesSearch = '';
+const _searchSalesDebounced = debounce((v) => { _salesSearch = v || ''; renderSales(); }, 250);
+
+export function setSalesFilter(f, btn) {
+  _salesFilter = f;
+  document.querySelectorAll('[data-sales-filter]').forEach(b => b.classList.toggle('filter-btn--active', b.dataset.salesFilter === f));
+  renderSales();
+}
+
+export function setSalesSort(s) {
+  _salesSort = s;
+  document.querySelectorAll('[data-sales-sort]').forEach(b => b.classList.toggle('sort-btn--active', b.dataset.salesSort === s));
+  renderSales();
+}
+
+export function searchSales(v) { _searchSalesDebounced(v); }
+
+export function renderSales() {
+  let sales = [...getState('allSales')];
+  const custs = getState('allCustomers');
+
+  // Filter by pay type
+  if (_salesFilter !== 'all') sales = sales.filter(s => s.payType === _salesFilter);
+
+  // Search
+  if (_salesSearch) {
+    const q = _salesSearch.toLowerCase();
+    sales = sales.filter(s => {
+      const cust = custs.find(c => c.id === s.customerId);
+      return (cust?.name || '').toLowerCase().includes(q) ||
+             (s.date || '').includes(q) ||
+             String(s.total || '').includes(q);
+    });
+  }
+
+  // Sort
+  if (_salesSort === 'newest')       sales.sort((a,b) => b.date.localeCompare(a.date));
+  else if (_salesSort === 'amount')  sales.sort((a,b) => (b.total||0) - (a.total||0));
+  else if (_salesSort === 'name')    sales.sort((a,b) => {
+    const na = custs.find(c=>c.id===a.customerId)?.name||'';
+    const nb = custs.find(c=>c.id===b.customerId)?.name||'';
+    return na.localeCompare(nb);
+  });
+
+  const ct = document.getElementById('salesList');
+  if (!ct) return;
+
+  if (!sales.length) {
+    ct.innerHTML = `<div class="empty-state"><div class="empty-state__icon">📋</div>
+      <h3>${t('no_sales')}</h3>
+      <button class="btn btn--primary" onclick="openSaleForm()">${t('add_sale')}</button></div>`;
+    return;
+  }
+
+  const payIcon = { cash: '💵', upi: '📱', credit: '📒' };
+  ct.innerHTML = sales.map((s, i) => {
+    const cust = custs.find(c => c.id === s.customerId);
+    return `<div class="sale-card" style="animation-delay:${i*0.03}s">
+      <div class="sale-card__main">
+        <button class="sale-card__cust-link" onclick="openCustomerProfile('${s.customerId}')"
+          aria-label="View ${esc(cust?.name||'')} profile">${esc(cust?.name || '—')}</button>
+        <div class="sale-card__meta">${s.qty} roti · ${fmtDate(s.date)}</div>
+      </div>
+      <div class="sale-card__right">
+        <span class="sale-card__total">${fmtCurrency(s.total)}</span>
+        <span class="sale-card__pay" title="${s.payType}">${payIcon[s.payType]||''}</span>
+        <div class="sale-card__actions">
+          <button class="ic-btn" onclick="openSaleForm('${s.id}')" aria-label="${t('edit_sale')}">✏️</button>
+          <button class="ic-btn ic-btn--danger" onclick="deleteSale('${s.id}')" aria-label="${t('delete')}">🗑️</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── Customer Picker ──────────────────────────────────────────────────────
+const _filterCustPickerDebounced = debounce((v) => _renderCustPicker(v || ''), 200);
+
+export function filterCustPicker(v) { _filterCustPickerDebounced(v); }
+
+function _renderCustPicker(query) {
+  const ct = document.getElementById('custPickerList');
+  if (!ct) return;
+  let custs = getState('allCustomers').filter(c => c.status !== 'inactive');
+  if (query) {
+    const q = query.toLowerCase();
+    custs = custs.filter(c => (c.name||'').toLowerCase().includes(q));
+  }
+  ct.innerHTML = custs.map(c =>
+    `<button class="cust-pick-item${c.id === _saleFormCustId ? ' cust-pick-item--active' : ''}"
+       onclick="selectCustomer('${c.id}')">${esc(c.name)}</button>`
+  ).join('') || `<div class="empty-mini">${t('no_customers')}</div>`;
+}
+
+function _updateCustPicker(custId) {
+  _saleFormCustId = custId;
+  _renderCustPicker('');
+  const cust = findById(getState('allCustomers'), custId);
+  const display = document.getElementById('sfCustDisplay');
+  if (display) display.textContent = cust?.name || t('field_customer');
+
+  if (cust) {
+    // Pre-fill rate, remembered payment type
+    const rate = document.getElementById('sfRate');
+    if (rate && !rate.value) rate.value = cust.rate || '';
+    const pay = document.getElementById('sfPay');
+    if (pay && _lastPayTypes[custId]) pay.value = _lastPayTypes[custId];
+    _calcSaleTotal();
+  }
+}
+
+export function selectCustomer(custId) {
+  _updateCustPicker(custId);
+  clearFieldError('sfCustDisplay');
+}
+
+// ── QUICK SALE ───────────────────────────────────────────────────────────
+let _qsSkipped = new Set();  // custIds skipped today
+
+export function loadQuickSale() {
+  const custs = getState('allCustomers').filter(c => c.orderType === 'fixed' && c.status !== 'inactive');
+  const today = todayStr();
+  const todaySales = getState('allSales').filter(s => s.date === today);
+  const doneCustIds = new Set(todaySales.map(s => s.customerId));
+
+  const pending = custs.filter(c => !doneCustIds.has(c.id) && !_qsSkipped.has(c.id));
+  const done    = custs.filter(c =>  doneCustIds.has(c.id));
+  const skipped = custs.filter(c => _qsSkipped.has(c.id));
+
+  // Stats
+  const pendingEl = document.getElementById('qsPendingCount');
+  const doneEl    = document.getElementById('qsDoneCount');
+  if (pendingEl) pendingEl.textContent = pending.length;
+  if (doneEl)    doneEl.textContent    = done.length;
+
+  const ct = document.getElementById('quickSaleList');
+  if (!ct) return;
+
+  if (!custs.length) {
+    ct.innerHTML = `<div class="empty-state">
+      <div class="empty-state__icon">🍞</div>
+      <h3>${t('no_fixed_custs')}</h3>
+      <button class="btn btn--primary" onclick="openCustForm()">${t('add_customer_cta')}</button>
+    </div>`;
+    return;
+  }
+
+  let html = '';
+
+  // Pending rows
+  pending.forEach((c, i) => {
+    html += `
+    <div class="qs-row" id="qsRow_${c.id}" style="animation-delay:${i*0.04}s">
+      <div class="qs-row__swipe-hint">Skip ➜</div>
+      <div class="qs-row__inner">
+        <div class="qs-row__cust">
+          <button class="qs-row__name-link" onclick="openCustomerProfile('${c.id}')">${esc(c.name)}</button>
+          <span class="qs-row__sub">${c.qty} roti · ${fmtCurrency(c.qty * c.rate)}</span>
+        </div>
+        <div class="qs-row__controls">
+          <select class="qs-pay-sel" id="qsPay_${c.id}" aria-label="Payment type for ${esc(c.name)}">
+            <option value="cash"${(_lastPayTypes[c.id]||'cash')==='cash'?' selected':''}>💵 ${t('pay_cash')}</option>
+            <option value="upi" ${(_lastPayTypes[c.id]||'')==='upi'?' selected':''} >📱 ${t('pay_upi')}</option>
+            <option value="credit"${(_lastPayTypes[c.id]||'')==='credit'?' selected':''}>📒 ${t('pay_credit')}</option>
+          </select>
+          <button class="btn btn--success btn--sm qs-done-btn" onclick="qsMarkDone('${c.id}')">
+            ✓ ${t('done')}
+          </button>
+        </div>
+        <button class="qs-skip-btn" onclick="qsSkip('${c.id}')" aria-label="${t('skip_today')}">${t('skip_today')}</button>
+      </div>
+    </div>`;
+  });
+
+  // Done rows
+  done.forEach(c => {
+    const sale = todaySales.find(s => s.customerId === c.id);
+    const payIcon = { cash: '💵', upi: '📱', credit: '📒' }[sale?.payType || 'cash'];
+    html += `<div class="qs-row qs-row--done">
+      <div class="qs-row__inner qs-row__inner--done">
+        <span class="qs-done-check">✅</span>
+        <span class="qs-row__name-done">${esc(c.name)}</span>
+        <span class="qs-row__meta-done">${sale?.qty||c.qty} roti · ${fmtCurrency(sale?.total||0)} ${payIcon}</span>
+      </div>
+    </div>`;
+  });
+
+  // Skipped rows
+  skipped.forEach(c => {
+    html += `<div class="qs-row qs-row--skipped">
+      <div class="qs-row__inner">
+        <span class="qs-row__name-done">${esc(c.name)}</span>
+        <span class="badge badge--muted">${t('skipped')}</span>
+        <button class="btn btn--ghost btn--xs" onclick="qsUndoSkip('${c.id}')">${t('undo_skip')}</button>
+      </div>
+    </div>`;
+  });
+
+  ct.innerHTML = html;
+
+  // Swipe-to-skip gesture
+  document.querySelectorAll('.qs-row:not(.qs-row--done):not(.qs-row--skipped)').forEach(_addQsSwipe);
+
+  // Mark all done button
+  const markAllBtn = document.getElementById('qsMarkAllBtn');
+  if (markAllBtn) markAllBtn.style.display = pending.length > 0 ? 'flex' : 'none';
+}
+
+function _addQsSwipe(row) {
+  let startX = 0;
+  row.addEventListener('touchstart', e => { startX = e.touches[0].clientX; }, { passive: true });
+  row.addEventListener('touchmove', e => {
+    const dx = e.touches[0].clientX - startX;
+    if (dx < 0) row.style.transform = `translateX(${dx}px)`;
+  }, { passive: true });
+  row.addEventListener('touchend', e => {
+    const dx = e.changedTouches[0].clientX - startX;
+    row.style.transition = 'transform 0.25s ease';
+    row.style.transform  = '';
+    setTimeout(() => row.style.transition = '', 300);
+    if (dx < -70) {
+      const custId = row.id.replace('qsRow_', '');
+      qsSkip(custId);
     }
+  });
 }
-function confirmDelCust(id) {
-    if (!canModify()) { showToast('❌ Staff cannot delete', 'error'); return; }
-    var c = findInArray(allCustomers, id);
+
+export async function qsMarkDone(custId) {
+  const cust    = findById(getState('allCustomers'), custId);
+  if (!cust) return;
+  const payType = document.getElementById(`qsPay_${custId}`)?.value || _lastPayTypes[custId] || 'cash';
+  _lastPayTypes[custId] = payType;
+
+  const data = {
+    customerId: custId,
+    date:       todayStr(),
+    qty:        cust.qty,
+    rate:       cust.rate,
+    total:      cust.qty * cust.rate,
+    payType,
+    deleted:    false,
+    createdAt:  serverTimestamp(),
+  };
+
+  const row = document.getElementById(`qsRow_${custId}`);
+  if (row) {
+    row.classList.add('qs-row--saving');
+    row.querySelector('.qs-done-btn').disabled = true;
+  }
+
+  try {
+    await withRetry(() => addDoc(biz('sales'), data));
+    // Satisfying animation
+    if (row) {
+      row.classList.add('qs-row--success');
+      if (navigator.vibrate) navigator.vibrate(40);
+      await new Promise(r => setTimeout(r, 500));
+      row.classList.remove('qs-row--saving');
+    }
+    // loadQuickSale is triggered by Firestore listener — no manual call needed
+  } catch (err) {
+    if (row) row.classList.remove('qs-row--saving', 'qs-row--success');
+    showToast(t('error_save'), 'error');
+  }
+}
+
+export function qsSkip(custId) {
+  _qsSkipped.add(custId);
+  loadQuickSale();
+}
+
+export function qsUndoSkip(custId) {
+  _qsSkipped.delete(custId);
+  loadQuickSale();
+}
+
+let _markAllInProgress = false;
+export async function markAllFixedDone() {
+  if (_markAllInProgress) return;
+
+  const custs   = getState('allCustomers').filter(c => c.orderType === 'fixed' && c.status !== 'inactive');
+  const today   = todayStr();
+  const doneCustIds = new Set(getState('allSales').filter(s => s.date === today).map(s => s.customerId));
+  const toSave  = custs.filter(c => !doneCustIds.has(c.id) && !_qsSkipped.has(c.id));
+
+  if (!toSave.length) { showToast(t('all_done'), 'success'); return; }
+
+  const ok = await showConfirm('✅', t('mark_all_done'),
+    `Mark ${toSave.length} customers as done for today?`, { danger: false, yesLabel: 'Mark All Done' });
+  if (!ok) return;
+
+  _markAllInProgress = true;
+  const btn = document.getElementById('qsMarkAllBtn');
+  btnLoading(btn, true, t('marking_done'));
+
+  try {
+    // ✅ BATCH WRITES — not sequential awaits (v7 bug fixed)
+    // Firestore batch max = 499 ops — chunk if needed
+    const CHUNK = 499;
+    for (let i = 0; i < toSave.length; i += CHUNK) {
+      const chunk = toSave.slice(i, i + CHUNK);
+      const batch = writeBatch(db);
+      chunk.forEach(c => {
+        const ref = doc(collection(db, 'businesses', requireBizId(), 'sales'));
+        batch.set(ref, {
+          customerId: c.id,
+          date:       today,
+          qty:        c.qty,
+          rate:       c.rate,
+          total:      c.qty * c.rate,
+          payType:    _lastPayTypes[c.id] || 'cash',
+          deleted:    false,
+          createdAt:  serverTimestamp(),
+        });
+      });
+      await withRetry(() => batch.commit());
+    }
+    showToast(t('all_done'), 'success');
+    if (navigator.vibrate) navigator.vibrate([50, 50, 100]);
+  } catch (err) {
+    console.error('[data] markAllFixedDone', err);
+    showToast(t('error_save'), 'error');
+  } finally {
+    _markAllInProgress = false;
+    btnLoading(btn, false);
+  }
+}
+
+// ── CUSTOMERS ────────────────────────────────────────────────────────────
+const _searchCustDebounced = debounce((v) => { _renderCusts(v||''); }, 250);
+
+export function loadCusts() { _renderCusts(''); }
+
+export function searchCustomers(v) { _searchCustDebounced(v); }
+
+function _renderCusts(query) {
+  let custs = getState('allCustomers');
+  if (query) {
+    const q = query.toLowerCase();
+    custs = custs.filter(c => (c.name||'').toLowerCase().includes(q) || (c.phone||'').includes(q));
+  }
+
+  const ct = document.getElementById('custList');
+  if (!ct) return;
+
+  if (!custs.length) {
+    ct.innerHTML = `<div class="empty-state">
+      <div class="empty-state__icon">👥</div>
+      <h3>${t('no_customers')}</h3>
+      <button class="btn btn--primary" onclick="openCustForm()">${t('add_customer')}</button>
+    </div>`;
+    return;
+  }
+
+  ct.innerHTML = custs.map((c, i) => {
+    const statusClass = c.status === 'inactive' ? 'badge--muted' : c.status === 'seasonal' ? 'badge--warning' : 'badge--success';
+    const daily  = c.orderType === 'fixed' ? fmtCurrency(c.qty * c.rate) : null;
+    return `<div class="cust-card${c.status !== 'active' ? ' cust-card--inactive' : ''}" style="animation-delay:${i*0.04}s">
+      <div class="cust-card__top">
+        <button class="cust-card__name" onclick="openCustomerProfile('${c.id}')">${esc(c.name)}</button>
+        <span class="badge ${statusClass}">${t('status_' + (c.status||'active'))}</span>
+      </div>
+      <div class="cust-card__meta">
+        <span>₹${c.rate}/roti</span>
+        ${c.orderType === 'fixed' ? `<span>Fixed: ${c.qty}/day</span>` : '<span>Variable</span>'}
+        ${daily ? `<span class="cust-card__daily">${t('expected_daily', daily.replace('₹',''))}</span>` : ''}
+      </div>
+      ${c.phone ? `<div class="cust-card__phone">📞 ${esc(c.phone)}</div>` : ''}
+      <div class="cust-card__actions">
+        <button class="ic-btn" onclick="openCustForm('${c.id}')" aria-label="${t('edit_customer')}">✏️</button>
+        <button class="ic-btn ic-btn--danger" onclick="deleteCust('${c.id}')" aria-label="${t('delete')}">🗑️</button>
+        <button class="ic-btn" onclick="toggleCustStatus('${c.id}')" aria-label="Change status">⚙️</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+export function openCustForm(id) {
+  if (!canModify()) { showToast(t('staff_cannot'), 'error'); return; }
+  clearAllFieldErrors('custForm');
+  const form = document.getElementById('custForm');
+  if (form) form.reset();
+  document.getElementById('cfId').value = '';
+  document.getElementById('cfFormTitle').textContent = id ? t('edit_customer') : t('add_customer');
+  document.getElementById('cfFixedGroup').style.display = 'none';
+
+  if (id) {
+    const c = findById(getState('allCustomers'), id);
     if (!c) return;
-    showConfirm('🗑️', 'Delete Customer?', 'Delete "' + c.name + '"? This cannot be undone.', async function() {
-        try { await fsDelete('customers', id); showToast('✅ ' + c.name + ' deleted!'); }
-        catch (err) { showToast('❌ Error deleting', 'error'); }
-    });
-}
-
-
-// ============ SALES — BATCH MODE ============
-var _batchSelected = {};
-var _batchMode     = false;
-
-/**
- * enterBatchMode / exitBatchMode — FIX
- *
- * BUG: Both functions called document.getElementById('batchBtn') which
- * didn't exist in the HTML, causing a null-reference silently broken feature.
- *
- * FIX: Now targets id="batchModeBtn" which is correctly declared in index.html.
- */
-function enterBatchMode() {
-    _batchMode = true;
-    _batchSelected = {};
-    var toolbar = document.getElementById('batchToolbar');
-    if (toolbar) toolbar.classList.add('active');
-    var btn = document.getElementById('batchModeBtn');
-    if (btn) { btn.textContent = 'Cancel'; btn.onclick = exitBatchMode; }
-    loadSales();
-}
-function exitBatchMode() {
-    _batchMode     = false;
-    _batchSelected = {};
-    var toolbar = document.getElementById('batchToolbar');
-    if (toolbar) toolbar.classList.remove('active');
-    var btn = document.getElementById('batchModeBtn');
-    if (btn) { btn.textContent = 'Select'; btn.onclick = enterBatchMode; }
-    var cntEl = document.getElementById('batchCount');
-    if (cntEl) cntEl.textContent = '0 selected';
-    loadSales();
-}
-function toggleSaleSelect(id) {
-    if (_batchSelected[id]) delete _batchSelected[id]; else _batchSelected[id] = true;
-    var count  = Object.keys(_batchSelected).length;
-    var cntEl  = document.getElementById('batchCount');
-    if (cntEl) cntEl.textContent = count + ' selected';
-    var delBtn = document.getElementById('batchDeleteBtn');
-    if (delBtn) delBtn.disabled = (count === 0);
-    var card = document.querySelector('[data-sid="' + id + '"]');
-    if (card) card.classList.toggle('sale-selected', !!_batchSelected[id]);
-}
-function selectAllSales() {
-    var date = document.getElementById('salesDate').value;
-    if (!date) return;
-    salesForDate(date).forEach(function(s) { _batchSelected[s.id] = true; });
-    var count  = Object.keys(_batchSelected).length;
-    var cntEl  = document.getElementById('batchCount');
-    if (cntEl) cntEl.textContent = count + ' selected';
-    var delBtn = document.getElementById('batchDeleteBtn');
-    if (delBtn) delBtn.disabled = (count === 0);
-    loadSales();
-}
-
-/**
- * batchDeleteSelected — FIX: use Firestore batch writes
- *
- * BUG: Was using sequential `for` loop with `await fsDelete()` per record.
- * For 50 sales, that's 50 sequential network round-trips (~5 seconds).
- *
- * FIX: Firestore batch allows up to 500 operations per commit.
- * All deletes now happen in a single atomic batch request.
- */
-function batchDeleteSelected() {
-    var ids = Object.keys(_batchSelected);
-    if (!ids.length) { showToast('No sales selected', 'error'); return; }
-    showConfirm('🗑️', 'Delete ' + ids.length + ' Sales?',
-        ids.length + ' sales will be permanently deleted. This cannot be undone.',
-        async function() {
-            try {
-                showToast('⏳ Deleting...', 'success');
-                // Use Firestore batch writes — all deletes in one atomic commit
-                var batch = fdb.batch();
-                ids.forEach(function(id) {
-                    batch.delete(businessRef.collection('sales').doc(id));
-                });
-                await batch.commit();
-                showToast('✅ ' + ids.length + ' sales deleted!');
-                exitBatchMode();
-            } catch (err) {
-                console.error('[BatchDel]', err);
-                showToast('❌ Error deleting sales', 'error');
-            }
-        }
-    );
-}
-
-
-// ============ SALES — LIST & CRUD ============
-function changeSalesDate(off) {
-    var cv = document.getElementById('salesDate').value;
-    var nd = dateShift(cv, off);
-    if (nd) {
-        setDateInput('salesDate', nd);
-        updateDateBtn('salesDateBtn', nd);
-        clearSearch('salesSearch');
-        if (_batchMode) exitBatchMode();
-        loadSales();
+    document.getElementById('cfId').value      = c.id;
+    document.getElementById('cfName').value    = c.name   || '';
+    document.getElementById('cfAddr').value    = c.address || '';
+    document.getElementById('cfPhone').value   = c.phone  || '';
+    document.getElementById('cfRate').value    = c.rate   || '';
+    document.getElementById('cfType').value    = c.orderType || 'variable';
+    document.getElementById('cfStatus').value  = c.status || 'active';
+    if (c.orderType === 'fixed') {
+      document.getElementById('cfFixedGroup').style.display = '';
+      document.getElementById('cfQty').value = c.qty || '';
     }
+  }
+  openOverlay('custFormOverlay');
 }
-function loadSales() {
-    var date = document.getElementById('salesDate').value;
-    if (!date) return;
-    var all  = salesForDate(date);
-    var roti = 0, inc = 0, cash = 0, cred = 0;
-    all.forEach(function(s) {
-        roti += s.quantity;
-        inc  += s.total;
-        if (s.paymentType === 'credit') cred += s.total;
-        else                            cash += s.total;
-    });
-    var el;
-    el = document.getElementById('sRoti');   if (el) el.textContent = roti;
-    el = document.getElementById('sIncome'); if (el) el.textContent = '₹' + inc;
-    el = document.getElementById('sCash');   if (el) el.textContent = '₹' + cash;
-    el = document.getElementById('sCredit'); if (el) el.textContent = '₹' + cred;
-    renderSales(all);
-}
-var _filterSalesDebounced = null;
-function filterSales(query) {
-    // Recreate debounced function on each call to avoid stale-closure issues
-    if (!_filterSalesDebounced) _filterSalesDebounced = debounce(function(q) {
-        var date = document.getElementById('salesDate').value;
-        if (!date) return;
-        var all = salesForDate(date);
-        if (q && q.trim()) {
-            var ql = q.toLowerCase();
-            all = all.filter(function(s) {
-                return (s.customerName || 'Walk-in').toLowerCase().indexOf(ql) !== -1;
-            });
-        }
-        renderSales(all);
-    }, 280);
-    _filterSalesDebounced(query);
-}
-function openSaleForm(id) {
-    var form = document.getElementById('saleForm');
-    if (form) form.reset();
-    document.getElementById('sfId').value        = '';
-    document.getElementById('sfCustomerId').value = '';
-    document.getElementById('sfCustomerName').value = '';
-    document.getElementById('sfCustLabel').textContent = '-- Select Customer --';
-    document.getElementById('sfCustBtn').classList.remove('selected');
-    document.getElementById('sfType').value  = 'regular';
-    document.getElementById('sfPay').value   = 'cash';
-    document.getElementById('sfTotal').textContent = '₹0';
-    document.getElementById('sfRate').value  = '';
-    document.getElementById('sfQty').value   = '';
-    document.getElementById('sfCustGroup').style.display   = 'block';
-    document.getElementById('sfWalkinGroup').style.display = 'none';
-    document.getElementById('sfWalkinName').value          = '';
-    document.getElementById('sfRate').setAttribute('readonly', 'readonly');
-    var warn     = document.getElementById('sfDupWarn');
-    var advBanner = document.getElementById('sfAdvanceBanner');
-    if (warn)      warn.style.display      = 'none';
-    if (advBanner) advBanner.style.display = 'none';
 
-    document.querySelectorAll('#saleForm .tgl-row').forEach(function(row) {
-        row.querySelectorAll('.tgl').forEach(function(b, i) {
-            b.classList.toggle('active', i === 0);
-            b.setAttribute('aria-pressed', i === 0 ? 'true' : 'false');
-        });
-    });
+export function closeCustForm() { closeOverlay('custFormOverlay'); }
 
+export function setCustOrderType(type) {
+  document.getElementById('cfFixedGroup').style.display = type === 'fixed' ? '' : 'none';
+  if (type !== 'fixed') {
+    const qty = document.getElementById('cfQty');
+    if (qty) qty.value = '';
+  }
+}
+
+export async function saveCustomer(e) {
+  e.preventDefault();
+  clearAllFieldErrors('custForm');
+
+  const name    = document.getElementById('cfName')?.value.trim() || '';
+  const addr    = document.getElementById('cfAddr')?.value.trim() || '';
+  const phone   = document.getElementById('cfPhone')?.value.replace(/\s/g,'') || '';
+  const rate    = parseFloat(document.getElementById('cfRate')?.value || '');
+  const type    = document.getElementById('cfType')?.value || 'variable';
+  const qty     = type === 'fixed' ? parseInt(document.getElementById('cfQty')?.value||'0',10) : 0;
+  const status  = document.getElementById('cfStatus')?.value || 'active';
+  const id      = document.getElementById('cfId')?.value || '';
+
+  let valid = true;
+  if (!name)                         { setFieldError('cfName',  t('err_name_required')); valid = false; }
+  if (phone && !/^\d{10}$/.test(phone)) { setFieldError('cfPhone', t('err_phone_invalid')); valid = false; }
+  if (isNaN(rate)||rate<1||rate>500) { setFieldError('cfRate',  t('err_rate_cust'));      valid = false; }
+  if (type==='fixed' && (isNaN(qty)||qty<1||qty>9999)) { setFieldError('cfQty', t('err_qty_cust')); valid = false; }
+  if (!valid) return;
+
+  const data = { name, address: addr, phone, rate, orderType: type, qty: type==='fixed'?qty:0, status };
+  const btn  = document.getElementById('cfSubmitBtn');
+  btnLoading(btn, true);
+
+  try {
     if (id) {
-        document.getElementById('sfTitle').textContent = 'Edit Sale';
-        var s = findInArray(allSales, id);
-        if (s) {
-            document.getElementById('sfId').value       = s.id;
-            document.getElementById('sfRate').value     = s.rate;
-            document.getElementById('sfQty').value      = s.quantity;
-            document.getElementById('sfPay').value      = s.paymentType;
-            if (s.saleType === 'walkin') {
-                document.getElementById('sfType').value = 'walkin';
-                document.getElementById('sfCustGroup').style.display   = 'none';
-                document.getElementById('sfWalkinGroup').style.display = 'block';
-                document.getElementById('sfWalkinName').value          = s.customerName || '';
-                document.getElementById('sfRate').removeAttribute('readonly');
-                var typeTgls = document.querySelectorAll('#saleForm .tgl-row')[0].querySelectorAll('.tgl');
-                typeTgls.forEach(function(b) { b.classList.remove('active'); b.setAttribute('aria-pressed', 'false'); });
-                if (typeTgls[1]) { typeTgls[1].classList.add('active'); typeTgls[1].setAttribute('aria-pressed', 'true'); }
-            } else {
-                document.getElementById('sfCustomerId').value   = s.customerId;
-                document.getElementById('sfCustomerName').value = s.customerName;
-                document.getElementById('sfCustLabel').textContent = s.customerName + ' (₹' + s.rate + ')';
-                document.getElementById('sfCustBtn').classList.add('selected');
-            }
-            calcSaleTotal();
-            var payTgls = document.querySelectorAll('#saleForm .tgl3 .tgl');
-            payTgls.forEach(function(b) { b.classList.remove('active'); b.setAttribute('aria-pressed', 'false'); });
-            var payIdx = s.paymentType === 'cash' ? 0 : s.paymentType === 'upi' ? 1 : 2;
-            if (payTgls[payIdx]) { payTgls[payIdx].classList.add('active'); payTgls[payIdx].setAttribute('aria-pressed', 'true'); }
-        }
+      await withRetry(() => updateDoc(docR('customers', id), data));
+      showToast(t('cust_saved'), 'success');
     } else {
-        document.getElementById('sfTitle').textContent = 'New Sale';
+      await withRetry(() => addDoc(biz('customers'), { ...data, createdAt: serverTimestamp() }));
+      showToast(t('cust_saved'), 'success');
     }
-    openOverlay('saleFormOverlay');
+    closeOverlay('custFormOverlay');
+  } catch (err) {
+    console.error('[data] saveCustomer', err);
+    showToast(t('error_save'), 'error');
+  } finally {
+    btnLoading(btn, false);
+  }
 }
-function showAdvanceNotice(cid) {
-    var advBanner = document.getElementById('sfAdvanceBanner');
-    if (!advBanner) return;
-    var advance = getCustomerAdvance(cid);
-    if (advance > 0) {
-        advBanner.textContent = '💚 This customer has ₹' + advance + ' advance. This sale will be adjusted against it.';
-        advBanner.style.display = 'block';
+
+export async function deleteCust(id) {
+  if (!canModify()) { showToast(t('staff_cannot'), 'error'); return; }
+  const cust = findById(getState('allCustomers'), id);
+  if (!cust) return;
+  const ok = await showConfirm('🗑️', t('confirm_delete', cust.name), t('confirm_delete_msg'));
+  if (!ok) return;
+  try { await withRetry(() => deleteDoc(docR('customers', id))); showToast(t('cust_deleted'), 'success'); }
+  catch (err) { showToast(t('error_delete'), 'error'); }
+}
+
+export async function toggleCustStatus(id) {
+  if (!canModify()) return;
+  const cust = findById(getState('allCustomers'), id);
+  if (!cust) return;
+  const next = { active: 'inactive', inactive: 'seasonal', seasonal: 'active' };
+  const newStatus = next[cust.status || 'active'];
+  await withRetry(() => updateDoc(docR('customers', id), { status: newStatus }));
+  showToast(`Customer marked ${newStatus}`, 'info');
+}
+
+// ── CREDIT ───────────────────────────────────────────────────────────────
+export function loadCredit() {
+  const custs   = getState('allCustomers');
+  const sales   = getState('allSales');
+  const payments= getState('allCreditPayments');
+
+  // Build credit summary per customer
+  const summary = {};
+  sales.filter(s => s.payType === 'credit').forEach(s => {
+    if (!summary[s.customerId]) summary[s.customerId] = { given:0, paid:0, lastCreditDate:'', lastPayDate:'' };
+    summary[s.customerId].given += s.total || 0;
+    if (!summary[s.customerId].lastCreditDate || s.date > summary[s.customerId].lastCreditDate)
+      summary[s.customerId].lastCreditDate = s.date;
+  });
+  payments.forEach(p => {
+    if (!summary[p.customerId]) summary[p.customerId] = { given:0, paid:0, lastCreditDate:'', lastPayDate:'' };
+    summary[p.customerId].paid += p.amount || 0;
+    if (!summary[p.customerId].lastPayDate || p.date > summary[p.customerId].lastPayDate)
+      summary[p.customerId].lastPayDate = p.date;
+  });
+
+  // Filter to only customers with credit activity
+  let rows = Object.entries(summary)
+    .map(([custId, data]) => {
+      const cust    = custs.find(c => c.id === custId);
+      const balance = data.given - data.paid;
+      const daysSincePayment = data.lastPayDate ?
+        daysBetween(data.lastPayDate, todayStr()) : null;
+      return { custId, cust, ...data, balance, daysSincePayment };
+    })
+    .filter(r => r.balance !== 0 || r.given > 0);
+
+  // Sort
+  const sort = getState('creditSort') || 'balance';
+  if (sort === 'balance')  rows.sort((a,b) => (b.balance||0) - (a.balance||0));
+  if (sort === 'oldest')   rows.sort((a,b) => (b.daysSincePayment||0) - (a.daysSincePayment||0));
+  if (sort === 'name')     rows.sort((a,b) => (a.cust?.name||'').localeCompare(b.cust?.name||''));
+
+  // Header totals
+  const totalGiven   = rows.reduce((s,r) => s + r.given, 0);
+  const totalPaid    = rows.reduce((s,r) => s + r.paid, 0);
+  const totalBalance = rows.reduce((s,r) => s + r.balance, 0);
+
+  const _set = (id, v) => { const el=document.getElementById(id); if(el) el.textContent=v; };
+  _set('creditTotalGiven',   fmtCurrency(totalGiven));
+  _set('creditTotalPaid',    fmtCurrency(totalPaid));
+  _set('creditTotalBalance', fmtCurrency(totalBalance));
+
+  const ct = document.getElementById('creditList');
+  if (!ct) return;
+
+  if (!rows.length) {
+    ct.innerHTML = `<div class="empty-state"><div class="empty-state__icon">✅</div>
+      <h3>${t('no_credit')}</h3></div>`;
+    return;
+  }
+
+  ct.innerHTML = rows.map((r, i) => {
+    if (!r.cust) return '';
+    const balClass   = r.balance > 0 ? 'credit-card__bal--owed' : 'credit-card__bal--cleared';
+    const urgency    = r.daysSincePayment === null ? '' :
+      r.daysSincePayment > 30 ? 'credit-card--urgent' :
+      r.daysSincePayment > 7  ? 'credit-card--warn'   : '';
+    const payAgeText = r.daysSincePayment === null
+      ? t('last_credit', fmtDate(r.lastCreditDate))
+      : r.daysSincePayment > 30
+        ? t('no_payment_days', r.daysSincePayment)
+        : t('last_payment', fmtRelativeDate(r.lastPayDate));
+
+    return `<div class="credit-card ${urgency}" style="animation-delay:${i*0.04}s">
+      <div class="credit-card__top">
+        <button class="credit-card__name" onclick="openCustomerProfile('${r.custId}')">${esc(r.cust.name)}</button>
+        <span class="credit-card__bal ${balClass}">${fmtCurrency(r.balance)}</span>
+      </div>
+      <div class="credit-card__stats">
+        <span>Given: ${fmtCurrency(r.given)}</span>
+        <span>Paid: ${fmtCurrency(r.paid)}</span>
+      </div>
+      <div class="credit-card__age">${payAgeText}</div>
+      <div class="credit-card__actions">
+        ${r.balance > 0 ? `<button class="btn btn--primary btn--sm" onclick="openCreditPayment('${r.custId}',${r.balance})">${t('collect_payment')}</button>` : ''}
+        ${r.cust.phone ? `<button class="btn btn--whatsapp btn--sm" onclick="sendWhatsAppReminder('${r.custId}',${r.balance})">${t('whatsapp_remind')}</button>` : ''}
+        <button class="btn btn--ghost btn--sm" onclick="shareCreditStatement('${r.custId}')">${t('share_statement')}</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+export function openCreditPayment(custId, balance) {
+  const cust = findById(getState('allCustomers'), custId);
+  if (!cust) return;
+  document.getElementById('crpCustId').value   = custId;
+  document.getElementById('crpCustName').textContent = cust.name;
+  document.getElementById('crpBalance').textContent  = fmtCurrency(balance);
+  document.getElementById('crpFullBtn').textContent  = t('collect_full', fmtCurrency(balance).replace('₹',''));
+  document.getElementById('crpAmount').value = '';
+  clearFieldError('crpAmount');
+  openOverlay('creditPaymentOverlay');
+}
+
+export function crpSetFull() {
+  const bal = getState('allSales')
+    .filter(s => s.customerId === document.getElementById('crpCustId')?.value && s.payType === 'credit')
+    .reduce((s,x) => s + (x.total||0), 0)
+    - getState('allCreditPayments')
+      .filter(p => p.customerId === document.getElementById('crpCustId')?.value)
+      .reduce((s,x) => s + (x.amount||0), 0);
+  const el = document.getElementById('crpAmount');
+  if (el) el.value = Math.max(0, Math.round(bal));
+}
+
+export async function saveCreditPayment(e) {
+  e.preventDefault();
+  clearFieldError('crpAmount');
+  const custId  = document.getElementById('crpCustId')?.value;
+  const amount  = parseFloat(document.getElementById('crpAmount')?.value || '');
+  const date    = todayStr();
+
+  if (isNaN(amount) || amount <= 0) { setFieldError('crpAmount', t('err_pay_amount')); return; }
+
+  const btn = document.getElementById('crpSubmitBtn');
+  btnLoading(btn, true);
+  try {
+    await withRetry(() => addDoc(biz('creditPayments'), { customerId: custId, amount, date, createdAt: serverTimestamp() }));
+    showToast(t('credit_cleared'), 'success');
+
+    // Check if fully cleared
+    const cust = findById(getState('allCustomers'), custId);
+    const totalGiven = getState('allSales').filter(s=>s.customerId===custId&&s.payType==='credit').reduce((s,x)=>s+(x.total||0),0);
+    const totalPaid  = getState('allCreditPayments').filter(p=>p.customerId===custId).reduce((s,x)=>s+(x.amount||0),0) + amount;
+    const newBal = totalGiven - totalPaid;
+
+    if (newBal <= 0) {
+      showToast(t('paid_fully'), 'success', 2000);
+      setTimeout(() => closeOverlay('creditPaymentOverlay'), 1500);
     } else {
-        advBanner.style.display = 'none';
+      closeOverlay('creditPaymentOverlay');
     }
-}
-function checkDuplicateSale(custId, custName) {
-    var dateVal  = document.getElementById('salesDate').value || todayStr();
-    var existing = allSales.find(function(s) { return s.customerId === custId && s.date === dateVal; });
-    var warn     = document.getElementById('sfDupWarn');
-    var warnText = document.getElementById('sfDupText');
-    if (warn && existing) {
-        // FIX: In v7 duplicate orders are ALLOWED (customer can order twice a day).
-        // The warning is informational only — not a blocker.
-        warnText.textContent = esc(custName) + ' already has a sale today: ' +
-            existing.quantity + ' roti (₹' + existing.total + '). You can still add another.';
-        warn.style.display = 'block';
-    } else if (warn) {
-        warn.style.display = 'none';
-    }
-}
-async function saveSale(e) {
-    e.preventDefault();
-    var saleType = document.getElementById('sfType').value;
-    var cid      = document.getElementById('sfCustomerId').value;
-    var cname    = document.getElementById('sfCustomerName').value;
-    var r        = parseFloat(document.getElementById('sfRate').value);
-    var q        = parseInt(document.getElementById('sfQty').value, 10);
-
-    if (saleType === 'walkin') {
-        cname = document.getElementById('sfWalkinName').value.trim() || 'Walk-in';
-        cid   = '';
-        if (!r || r <= 0) { showToast('❌ Enter valid rate!', 'error'); return; }
-    } else {
-        if (!cid || !cname) { showToast('❌ Select a customer!', 'error'); return; }
-    }
-    if (!r || r <= 0) { showToast('❌ Rate must be positive!', 'error');    return; }
-    if (!q || q < 1)  { showToast('❌ Quantity must be at least 1!', 'error'); return; }
-
-    var data = {
-        customerId:  cid,
-        customerName: cname,
-        date:         document.getElementById('salesDate').value || todayStr(),
-        rate:         r,
-        quantity:     q,
-        total:        r * q,
-        paymentType:  document.getElementById('sfPay').value,
-        saleType:     saleType
-    };
-    if (saleType === 'walkin' && r > 0) localStorage.setItem('mdLastWalkinRate', r.toString());
-
-    var btn = document.getElementById('sfSubmitBtn');
-    btnLoading(btn, true);
-    try {
-        var idV = document.getElementById('sfId').value;
-        if (idV) { await fsUpdate('sales', idV, data); showToast('✅ Sale updated!'); }
-        else     { await fsAdd('sales', data);          showToast('✅ ' + cname + ' — ' + q + ' roti saved!'); }
-        closeOverlay('saleFormOverlay');
-    } catch (err) {
-        console.error('[Sale]', err);
-        showToast('❌ Error saving sale', 'error');
-    } finally {
-        btnLoading(btn, false);
-    }
-}
-function renderSales(sales) {
-    var ct = document.getElementById('salesList');
-    if (!ct) return;
-    if (!sales.length) {
-        var searchEl    = document.getElementById('salesSearch');
-        var isSearching = searchEl && searchEl.value.trim();
-        ct.innerHTML =
-            '<div class="empty"><div class="empty-ic">🫓</div>' +
-            '<h3>' + (isSearching ? 'No Results' : 'No Sales') + '</h3>' +
-            '<p>' + (isSearching ? 'Try a different search' : 'No sales on this date') + '</p>' +
-            (isSearching ? '' : '<button class="empty-btn" onclick="openSaleForm()">+ Add Sale</button>') +
-            '</div>';
-        return;
-    }
-    var h = '';
-    sales.forEach(function(s, i) {
-        var pb         = payBdg(s.paymentType);
-        var isWalkin   = s.saleType === 'walkin';
-        var isSelected = _batchSelected[s.id];
-        h += '<div class="sale-card' + (isWalkin ? ' walkin' : '') + (isSelected ? ' sale-selected' : '') + '"' +
-             ' data-sid="' + s.id + '" style="animation-delay:' + (i * 0.04) + 's">';
-        if (_batchMode) {
-            h += '<input type="checkbox" class="batch-chk" ' + (isSelected ? 'checked' : '') +
-                 ' onclick="toggleSaleSelect(\'' + s.id + '\')" aria-label="Select sale">';
-        }
-        h += '<div class="sl-top"><div class="sl-name">' + esc(s.customerName || 'Walk-in') + '</div>' +
-             '<div class="sl-amt">₹' + s.total + '</div></div>';
-        h += '<div class="sl-badges">' +
-             '<span class="sl-b slb-q">' + s.quantity + ' roti</span>' +
-             '<span class="sl-b slb-r">₹' + s.rate + '/roti</span>' +
-             '<span class="sl-b ' + pb.c + '">' + pb.t + '</span>' +
-             (isWalkin ? '<span class="sl-b slb-w">🚶 Walk-in</span>' : '') +
-             '</div>';
-        h += '<div class="sl-foot"><span class="sl-time">' + getTime(s.createdAt) + '</span>';
-        if (canModify() && !_batchMode) {
-            h += '<div class="sl-acts">' +
-                 '<button class="ic-btn ib-e" onclick="openSaleForm(\'' + s.id + '\')" aria-label="Edit">✏️</button>' +
-                 '<button class="ic-btn ib-d" onclick="confirmDelSale(\'' + s.id + '\')" aria-label="Delete">🗑️</button>' +
-                 '</div>';
-        }
-        h += '</div></div>';
-    });
-    ct.innerHTML = h;
-}
-function confirmDelSale(id) {
-    if (!canModify()) { showToast('❌ Staff cannot delete', 'error'); return; }
-    var s = findInArray(allSales, id);
-    if (!s) return;
-    showConfirm('🗑️', 'Delete Sale?',
-        (s.customerName || 'Walk-in') + ' — ' + s.quantity + ' roti (₹' + s.total + ')?',
-        async function() {
-            try   { await fsDelete('sales', id); showToast('✅ Sale deleted!'); }
-            catch (err) { showToast('❌ Error deleting', 'error'); }
-        }
-    );
+  } catch (err) {
+    showToast(t('error_save'), 'error');
+  } finally {
+    btnLoading(btn, false);
+  }
 }
 
+export function sendWhatsAppReminder(custId, balance) {
+  const cust = findById(getState('allCustomers'), custId);
+  if (!cust?.phone) return;
+  const bizName = getState('businessName');
+  const lang    = localStorage.getItem('mdLang') || 'en';
+  const msg = lang === 'hi'
+    ? `नमस्ते ${cust.name} जी! आपका ${bizName} में ₹${Math.round(balance)} बाकी है। कृपया भुगतान करें। धन्यवाद 🙏`
+    : `Hello ${cust.name}! Your outstanding balance at ${bizName} is ₹${Math.round(balance)}. Kindly arrange payment. Thank you! 🙏`;
+  window.open(buildWhatsAppLink(cust.phone, msg), '_blank');
+}
 
-// ============ EXPENSES ============
-function changeExpDate(off) {
-    var cv = document.getElementById('expDate').value;
-    var nd = dateShift(cv, off);
-    if (nd) { setDateInput('expDate', nd); updateDateBtn('expDateBtn', nd); loadExps(); }
+export async function shareCreditStatement(custId) {
+  const cust     = findById(getState('allCustomers'), custId);
+  if (!cust) return;
+  const sales    = getState('allSales').filter(s => s.customerId === custId && s.payType === 'credit');
+  const payments = getState('allCreditPayments').filter(p => p.customerId === custId);
+  const totalGiven= sales.reduce((s,x)=>s+(x.total||0),0);
+  const totalPaid = payments.reduce((s,x)=>s+(x.amount||0),0);
+  const balance   = totalGiven - totalPaid;
+  const bizName   = getState('businessName');
+
+  const text = [
+    `📋 Credit Statement — ${bizName}`,
+    `Customer: ${cust.name}`,
+    `As of: ${fmtDateLong(todayStr())}`,
+    '─────────────────────',
+    `Total Credit: ${fmtCurrency(totalGiven)}`,
+    `Total Paid:   ${fmtCurrency(totalPaid)}`,
+    `Outstanding:  ${fmtCurrency(balance)}`,
+    '─────────────────────',
+    balance > 0 ? `Please arrange payment of ${fmtCurrency(balance)}` : '✅ Account fully cleared',
+    `\nSent via Meri Dukaan`
+  ].join('\n');
+
+  await shareContent({ title: `${cust.name} — Credit Statement`, text });
 }
-function loadExps() {
-    var date  = document.getElementById('expDate').value;
-    if (!date) return;
-    var all   = expensesForDate(date);
-    var total = 0;
-    all.forEach(function(x) { total += x.amount; });
-    var el;
-    el = document.getElementById('eTotal'); if (el) el.textContent = '₹' + total;
-    el = document.getElementById('eCount'); if (el) el.textContent = all.length;
-    renderExps(all);
+
+// ── EXPENSES ─────────────────────────────────────────────────────────────
+export function loadExps() {
+  const exps = getState('allExpenses');
+  const ct   = document.getElementById('expenseList');
+  if (!ct) return;
+
+  if (!exps.length) {
+    ct.innerHTML = `<div class="empty-state"><div class="empty-state__icon">💸</div>
+      <h3>${t('no_expenses')}</h3>
+      <button class="btn btn--primary" onclick="openExpForm()">${t('add_expense')}</button></div>`;
+    return;
+  }
+
+  ct.innerHTML = exps.map((e, i) =>
+    `<div class="exp-card" style="animation-delay:${i*0.04}s">
+      <div class="exp-card__main">
+        <span class="exp-card__cat">${esc(e.category)}</span>
+        ${e.note ? `<span class="exp-card__note">${esc(e.note)}</span>` : ''}
+        <span class="exp-card__date">${fmtDate(e.date)}</span>
+      </div>
+      <div class="exp-card__right">
+        <span class="exp-card__amt">${fmtCurrency(e.amount)}</span>
+        <div class="exp-card__actions">
+          <button class="ic-btn" onclick="openExpForm('${e.id}')" aria-label="${t('edit_expense')}">✏️</button>
+          <button class="ic-btn ic-btn--danger" onclick="deleteExp('${e.id}')" aria-label="${t('delete')}">🗑️</button>
+        </div>
+      </div>
+    </div>`
+  ).join('');
 }
-function openExpenseForm(id) {
-    var form = document.getElementById('expForm');
-    if (form) form.reset();
-    document.getElementById('efId').value   = '';
-    document.getElementById('efCat').value  = 'atta';
-    document.getElementById('efPay').value  = 'cash';
-    document.getElementById('efDetailGrp').style.display = 'none';
-    document.getElementById('efWeightGrp').style.display = 'block';
-    document.getElementById('efRateInfo').style.display  = 'none';
-    document.querySelectorAll('#expForm .cat').forEach(function(b) { b.classList.remove('active'); });
-    var firstCat = document.querySelectorAll('#expForm .cat')[0];
-    if (firstCat) firstCat.classList.add('active');
-    var tg = document.querySelectorAll('#expForm .tgl');
-    tg.forEach(function(b) { b.classList.remove('active'); b.setAttribute('aria-pressed', 'false'); });
-    if (tg[0]) { tg[0].classList.add('active'); tg[0].setAttribute('aria-pressed', 'true'); }
+
+export function openExpForm(id) {
+  clearAllFieldErrors('expForm');
+  const form = document.getElementById('expForm');
+  if (form) form.reset();
+  document.getElementById('efId').value = '';
+  document.getElementById('efDate').value = todayStr();
+  document.getElementById('efFormTitle').textContent = id ? t('edit_expense') : t('add_expense');
+
+  if (id) {
+    const exp = findById(getState('allExpenses'), id);
+    if (!exp) return;
+    document.getElementById('efId').value       = exp.id;
+    document.getElementById('efCategory').value = exp.category || '';
+    document.getElementById('efAmount').value   = exp.amount   || '';
+    document.getElementById('efNote').value     = exp.note     || '';
+    document.getElementById('efDate').value     = exp.date     || todayStr();
+    if (exp.qty)  document.getElementById('efQty').value  = exp.qty;
+    if (exp.unit) document.getElementById('efUnit').value = exp.unit;
+  }
+  openOverlay('expFormOverlay');
+}
+
+export function closeExpForm() { closeOverlay('expFormOverlay'); }
+
+export async function saveExp(e) {
+  e.preventDefault();
+  clearAllFieldErrors('expForm');
+
+  const category = document.getElementById('efCategory')?.value.trim() || '';
+  const amount   = parseFloat(document.getElementById('efAmount')?.value || '');
+  const note     = document.getElementById('efNote')?.value.trim() || '';
+  const date     = document.getElementById('efDate')?.value || todayStr();
+  const qty      = document.getElementById('efQty')?.value || '';
+  const unit     = document.getElementById('efUnit')?.value || '';
+  const id       = document.getElementById('efId')?.value || '';
+
+  let valid = true;
+  if (!category)              { setFieldError('efCategory', t('err_generic')); valid = false; }
+  if (isNaN(amount)||amount<=0){ setFieldError('efAmount', t('err_exp_amount')); valid = false; }
+  if (!valid) return;
+
+  const data = { category, amount, note, date, ...(qty?{qty:parseFloat(qty)}:{}), ...(unit?{unit}:{}) };
+  const btn  = document.getElementById('efSubmitBtn');
+  btnLoading(btn, true);
+
+  try {
     if (id) {
-        document.getElementById('efTitle').textContent = 'Edit Expense';
-        var x = findInArray(allExpenses, id);
-        if (x) {
-            document.getElementById('efId').value     = x.id;
-            document.getElementById('efCat').value    = x.category;
-            document.getElementById('efDetail').value = x.detail || '';
-            document.getElementById('efWeight').value = x.weight || '';
-            document.getElementById('efAmount').value = x.amount;
-            document.getElementById('efPay').value    = x.paymentType || 'cash';
-            setExpCatUI(x.category);
-            var catMap = { atta: 0, oil: 1, gas: 2, poly: 3, other: 4 };
-            document.querySelectorAll('#expForm .cat').forEach(function(b) { b.classList.remove('active'); });
-            var ci = catMap[x.category];
-            if (ci !== undefined) {
-                var catBtns = document.querySelectorAll('#expForm .cat');
-                if (catBtns[ci]) catBtns[ci].classList.add('active');
-            }
-            tg.forEach(function(b) { b.classList.remove('active'); b.setAttribute('aria-pressed', 'false'); });
-            var payIdx = x.paymentType === 'upi' ? 1 : 0;
-            if (tg[payIdx]) { tg[payIdx].classList.add('active'); tg[payIdx].setAttribute('aria-pressed', 'true'); }
-            showLastRate(x.category);
-        }
+      await withRetry(() => updateDoc(docR('expenses', id), data));
+      showToast(t('exp_saved'), 'success');
     } else {
-        document.getElementById('efTitle').textContent = 'New Expense';
-        showLastRate('atta');
+      await withRetry(() => addDoc(biz('expenses'), { ...data, createdAt: serverTimestamp() }));
+      showToast(t('exp_saved'), 'success');
     }
-    openOverlay('expFormOverlay');
-}
-function showLastRate(cat) {
-    var ri = document.getElementById('efRateInfo');
-    if (!ri) return;
-    if (cat !== 'atta' && cat !== 'oil') { ri.style.display = 'none'; return; }
-    var all = allExpenses
-        .filter(function(x) { return x.category === cat && x.weight && x.weight > 0; })
-        .sort(function(a, b) { return a.date > b.date ? 1 : -1; });
-    if (!all.length) { ri.style.display = 'none'; return; }
-    var last = all[all.length - 1];
-    var lr   = (last.amount / last.weight).toFixed(1);
-    var msg  = '📊 Last: ₹' + lr + '/kg (' + last.weight + 'kg = ₹' + last.amount + ') on ' + fmtDate(last.date);
-    if (all.length >= 2) {
-        var prev = all[all.length - 2];
-        var ch   = (((last.amount / last.weight) - (prev.amount / prev.weight)) / (prev.amount / prev.weight) * 100).toFixed(1);
-        if      (ch > 0)  { msg += '\n⬆️ ' + ch + '% price INCREASE';     ri.className = 'rate-box up'; }
-        else if (ch < 0)  { msg += '\n⬇️ ' + Math.abs(ch) + '% decrease'; ri.className = 'rate-box down'; }
-        else              { msg += '\n➡️ Same price';                       ri.className = 'rate-box neutral'; }
-    } else {
-        ri.className = 'rate-box neutral';
-    }
-    ri.textContent = msg;
-    ri.style.whiteSpace = 'pre-line';
-    ri.style.display    = 'block';
-}
-function updateExpComparison() {
-    var cat    = document.getElementById('efCat').value;
-    var ri     = document.getElementById('efRateInfo');
-    if (!ri || (cat !== 'atta' && cat !== 'oil')) return;
-    var weight = parseFloat(document.getElementById('efWeight').value) || 0;
-    var amount = parseFloat(document.getElementById('efAmount').value) || 0;
-    if (weight <= 0 || amount <= 0) { showLastRate(cat); return; }
-    var currentRate = (amount / weight).toFixed(1);
-    var all = allExpenses
-        .filter(function(x) { return x.category === cat && x.weight && x.weight > 0; })
-        .sort(function(a, b) { return a.date > b.date ? 1 : -1; });
-    if (!all.length) {
-        ri.textContent = '📊 Current rate: ₹' + currentRate + '/kg';
-        ri.className   = 'rate-box neutral';
-        ri.style.display = 'block';
-        return;
-    }
-    var last     = all[all.length - 1];
-    var lastRate = (last.amount / last.weight).toFixed(1);
-    var diff     = ((currentRate - lastRate) / lastRate * 100).toFixed(1);
-    var msg = '📊 Current: ₹' + currentRate + '/kg\n📊 Last: ₹' + lastRate + '/kg (' + last.weight + 'kg = ₹' + last.amount + ')';
-    if      (diff > 0) { msg += '\n⬆️ ' + diff + '% MORE expensive'; ri.className = 'rate-box up'; }
-    else if (diff < 0) { msg += '\n⬇️ ' + Math.abs(diff) + '% CHEAPER'; ri.className = 'rate-box down'; }
-    else               { msg += '\n➡️ Same rate';                       ri.className = 'rate-box neutral'; }
-    ri.textContent = msg;
-    ri.style.whiteSpace = 'pre-line';
-    ri.style.display    = 'block';
-}
-async function saveExpense(e) {
-    e.preventDefault();
-    var cat = document.getElementById('efCat').value;
-    var amt = parseFloat(document.getElementById('efAmount').value);
-    if (!amt || amt <= 0) { showToast('❌ Enter valid amount!', 'error'); return; }
-    var weight = parseFloat(document.getElementById('efWeight').value) || null;
-    if (weight !== null && weight <= 0) { showToast('❌ Weight must be positive!', 'error'); return; }
-    var data = {
-        category:    cat,
-        detail:      document.getElementById('efDetail').value.trim(),
-        weight:      weight,
-        amount:      amt,
-        paymentType: document.getElementById('efPay').value,
-        date:        document.getElementById('expDate').value || todayStr()
-    };
-    var btn = document.getElementById('efSubmitBtn');
-    btnLoading(btn, true);
-    try {
-        var idV = document.getElementById('efId').value;
-        if (idV) { await fsUpdate('expenses', idV, data); showToast('✅ Expense updated!'); }
-        else     { await fsAdd('expenses', data);          showToast('✅ ' + catNm(cat) + ' ₹' + amt + ' saved!'); }
-        closeOverlay('expFormOverlay');
-    } catch (err) {
-        console.error('[Expense]', err);
-        showToast('❌ Error saving expense', 'error');
-    } finally {
-        btnLoading(btn, false);
-    }
-}
-function renderExps(exps) {
-    var ct = document.getElementById('expList');
-    if (!ct) return;
-    if (!exps.length) {
-        ct.innerHTML =
-            '<div class="empty"><div class="empty-ic">🛒</div>' +
-            '<h3>No Expenses</h3><p>No expenses recorded on this date</p>' +
-            '<button class="empty-btn" onclick="openExpenseForm()">+ Add Expense</button></div>';
-        return;
-    }
-    var h = '';
-    exps.forEach(function(x, i) {
-        var pb  = payBdg(x.paymentType);
-        var det = '';
-        if (x.weight && x.weight > 0) det = x.weight + 'kg • ₹' + (x.amount / x.weight).toFixed(1) + '/kg';
-        else if (x.detail)            det = x.detail;
-        h += '<div class="exp-card" style="animation-delay:' + (i * 0.04) + 's">';
-        h += '<div class="ex-top"><div class="ex-cat">' + catIc(x.category) + ' ' + catNm(x.category) + '</div>' +
-             '<div class="ex-amt">-₹' + x.amount + '</div></div>';
-        if (det) h += '<div class="ex-det">' + esc(det) + '</div>';
-        h += '<div class="ex-badges"><span class="sl-b ' + pb.c + '">' + pb.t + '</span></div>';
-        h += '<div class="ex-foot"><span class="sl-time">' + getTime(x.createdAt) + '</span>';
-        if (canModify()) {
-            h += '<div class="sl-acts">' +
-                 '<button class="ic-btn ib-e" onclick="openExpenseForm(\'' + x.id + '\')" aria-label="Edit">✏️</button>' +
-                 '<button class="ic-btn ib-d" onclick="confirmDelExp(\'' + x.id + '\')" aria-label="Delete">🗑️</button>' +
-                 '</div>';
-        }
-        h += '</div></div>';
-    });
-    ct.innerHTML = h;
-}
-function confirmDelExp(id) {
-    if (!canModify()) { showToast('❌ Staff cannot delete', 'error'); return; }
-    var x = findInArray(allExpenses, id);
-    if (!x) return;
-    showConfirm('🗑️', 'Delete Expense?', catNm(x.category) + ' ₹' + x.amount + ' — Delete?', async function() {
-        try   { await fsDelete('expenses', id); showToast('✅ Expense deleted!'); }
-        catch (err) { showToast('❌ Error deleting', 'error'); }
-    });
+    closeOverlay('expFormOverlay');
+  } catch (err) { showToast(t('error_save'), 'error'); }
+  finally { btnLoading(btn, false); }
 }
 
+export async function deleteExp(id) {
+  if (!canModify()) { showToast(t('staff_cannot'), 'error'); return; }
+  const exp = findById(getState('allExpenses'), id);
+  if (!exp) return;
+  await softDelete('expenses', id, exp.category);
+}
 
-// ============ WASTE ============
-function changeWasteDate(off) {
-    var cv = document.getElementById('wasteDate').value;
-    var nd = dateShift(cv, off);
-    if (nd) { setDateInput('wasteDate', nd); updateDateBtn('wasteDateBtn', nd); loadWasteList(); }
+// ── WASTE ────────────────────────────────────────────────────────────────
+export function loadWasteList() {
+  const waste = getState('allWaste');
+  const sales = getState('allSales');
+  const ct    = document.getElementById('wasteList');
+  if (!ct) return;
+
+  if (!waste.length) {
+    ct.innerHTML = `<div class="empty-state"><div class="empty-state__icon">🗑️</div>
+      <h3>${t('no_waste')}</h3>
+      <button class="btn btn--primary" onclick="openWasteForm()">${t('add_waste')}</button></div>`;
+    return;
+  }
+
+  // TODAY'S rate (not all-time average) for cost calculation
+  const today     = todayStr();
+  const todaySales= sales.filter(s => s.date === today);
+  const todayRate = todaySales.length
+    ? todaySales.reduce((s,x) => s + (x.total||0), 0) / todaySales.reduce((s,x) => s + (x.qty||0), 0)
+    : 0;
+
+  ct.innerHTML = waste.map((w, i) => {
+    const rateForDay = todayRate; // TODO: could use that day's rate for older entries
+    const cost = w.qty * rateForDay;
+    return `<div class="waste-card" style="animation-delay:${i*0.04}s">
+      <div class="waste-card__main">
+        <span class="waste-card__qty">${w.qty} roti wasted</span>
+        <span class="waste-card__date">${fmtDate(w.date)}</span>
+        ${w.note ? `<span class="waste-card__note">${esc(w.note)}</span>` : ''}
+      </div>
+      <div class="waste-card__right">
+        ${cost > 0 ? `<span class="waste-card__cost">${fmtCurrency(cost)} lost</span>` : ''}
+        <button class="ic-btn ic-btn--danger" onclick="deleteWaste('${w.id}')" aria-label="${t('delete')}">🗑️</button>
+      </div>
+    </div>`;
+  }).join('');
 }
-function loadWasteList() {
-    var date     = document.getElementById('wasteDate').value;
-    if (!date) return;
-    var all      = wasteForDate(date);
-    var totalQty = 0;
-    all.forEach(function(w) { totalQty += (w.quantity || 0); });
-    var avgRate = 0;
-    if (allSales.length) {
-        var tA = 0, tQ = 0;
-        allSales.forEach(function(s) { tA += s.total; tQ += s.quantity; });
-        avgRate = tQ > 0 ? tA / tQ : 0;
-    }
-    var el;
-    el = document.getElementById('wQty');  if (el) el.textContent = totalQty;
-    el = document.getElementById('wCost'); if (el) el.textContent = '₹' + Math.round(totalQty * avgRate);
-    var ct = document.getElementById('wasteList');
-    if (!ct) return;
-    if (!all.length) {
-        ct.innerHTML =
-            '<div class="empty"><div class="empty-ic">🗑️</div>' +
-            '<h3>No Waste</h3><p>No waste recorded on this date</p>' +
-            '<button class="empty-btn" onclick="openWasteForm()">+ Add Waste</button></div>';
-        return;
-    }
-    var h = '';
-    all.forEach(function(w, i) {
-        h += '<div class="waste-card" style="animation-delay:' + (i * 0.04) + 's">';
-        h += '<div class="wc-top"><div class="wc-reason">' + wasteReasonText(w.reason) + '</div>' +
-             '<div class="wc-qty">' + w.quantity + ' roti</div></div>';
-        if (w.notes) h += '<div class="wc-notes">' + esc(w.notes) + '</div>';
-        h += '<div class="wc-foot"><span class="sl-time">' + getTime(w.createdAt) + '</span>';
-        if (canModify()) {
-            h += '<div class="sl-acts">' +
-                 '<button class="ic-btn ib-e" onclick="openWasteForm(\'' + w.id + '\')" aria-label="Edit">✏️</button>' +
-                 '<button class="ic-btn ib-d" onclick="confirmDelWaste(\'' + w.id + '\')" aria-label="Delete">🗑️</button>' +
-                 '</div>';
-        }
-        h += '</div></div>';
-    });
-    ct.innerHTML = h;
-}
-function openWasteForm(id) {
-    var form = document.getElementById('wasteForm');
-    if (form) form.reset();
-    document.getElementById('wfId').value     = '';
-    document.getElementById('wfReason').value = 'burnt';
-    document.querySelectorAll('#wasteForm .cat').forEach(function(b) { b.classList.remove('active'); });
-    var firstCat = document.querySelectorAll('#wasteForm .cat')[0];
-    if (firstCat) firstCat.classList.add('active');
-    var titleEl = document.getElementById('wfFormTitle');
-    if (id) {
-        if (titleEl) titleEl.textContent = 'Edit Waste Entry';
-        var w = findInArray(allWaste, id);
-        if (w) {
-            document.getElementById('wfId').value     = w.id;
-            document.getElementById('wfQty').value    = w.quantity;
-            document.getElementById('wfNotes').value  = w.notes || '';
-            document.getElementById('wfReason').value = w.reason || 'burnt';
-            var rmap = { burnt: 0, extra: 1, returned: 2, other: 3 };
-            document.querySelectorAll('#wasteForm .cat').forEach(function(b) { b.classList.remove('active'); });
-            var ri = rmap[w.reason];
-            if (ri !== undefined) {
-                var rBtns = document.querySelectorAll('#wasteForm .cat');
-                if (rBtns[ri]) rBtns[ri].classList.add('active');
-            }
-        }
-    } else {
-        if (titleEl) titleEl.textContent = 'Add Waste Entry';
-    }
-    openOverlay('wasteFormOverlay');
-}
-async function saveWaste(e) {
-    e.preventDefault();
-    var qty = parseInt(document.getElementById('wfQty').value, 10);
-    if (!qty || qty < 1) { showToast('❌ Enter valid quantity!', 'error'); return; }
-    var data = {
-        quantity: qty,
-        reason:   document.getElementById('wfReason').value,
-        notes:    document.getElementById('wfNotes').value.trim(),
-        date:     document.getElementById('wasteDate').value || todayStr()
-    };
-    var btn = document.getElementById('wfSubmitBtn');
-    btnLoading(btn, true);
-    try {
-        var idV = document.getElementById('wfId').value;
-        if (idV) { await fsUpdate('waste', idV, data); showToast('✅ Waste entry updated!'); }
-        else     { await fsAdd('waste', data);          showToast('✅ Waste entry saved!'); }
-        closeOverlay('wasteFormOverlay');
-    } catch (err) {
-        console.error('[Waste]', err);
-        showToast('❌ Error saving waste entry', 'error');
-    } finally {
-        btnLoading(btn, false);
-    }
-}
-function confirmDelWaste(id) {
-    if (!canModify()) { showToast('❌ Staff cannot delete', 'error'); return; }
-    var w = findInArray(allWaste, id);
+
+export function openWasteForm(id) {
+  clearAllFieldErrors('wasteForm');
+  const form = document.getElementById('wasteForm');
+  if (form) form.reset();
+  document.getElementById('wfId').value    = '';
+  document.getElementById('wfDate').value  = todayStr();
+  document.getElementById('wfFormTitle').textContent = id ? t('edit_waste') : t('add_waste');
+
+  // Show today's production context
+  const today      = todayStr();
+  const todayTotal = getState('allSales').filter(s=>s.date===today).reduce((s,x)=>s+(x.qty||0),0);
+  const ctxEl      = document.getElementById('wfProductionCtx');
+  if (ctxEl) ctxEl.textContent = t('today_production', todayTotal);
+
+  if (id) {
+    const w = findById(getState('allWaste'), id);
     if (!w) return;
-    showConfirm('🗑️', 'Delete Waste?',
-        w.quantity + ' roti (' + wasteReasonText(w.reason) + ') — Delete?',
-        async function() {
-            try   { await fsDelete('waste', id); showToast('✅ Waste entry deleted!'); }
-            catch (err) { showToast('❌ Error deleting', 'error'); }
-        }
-    );
+    document.getElementById('wfId').value   = w.id;
+    document.getElementById('wfQty').value  = w.qty;
+    document.getElementById('wfNote').value = w.note || '';
+    document.getElementById('wfDate').value = w.date;
+  }
+  openOverlay('wasteFormOverlay');
 }
 
+export function closeWasteForm() { closeOverlay('wasteFormOverlay'); }
 
-// ============ CREDIT ============
-function loadCredit() {
-    var cm = {};
-    allCustomers.forEach(function(c) { cm[c.id] = { id: c.id, name: c.name, g: 0, r: 0 }; });
-    var walkinCredit = { id: '__walkin__', name: '🚶 Walk-in Customers', g: 0, r: 0 };
+export async function saveWaste(e) {
+  e.preventDefault();
+  clearAllFieldErrors('wasteForm');
 
-    allSales.forEach(function(s) {
-        if (s.paymentType === 'credit') {
-            if (s.customerId) {
-                if (!cm[s.customerId]) cm[s.customerId] = { id: s.customerId, name: s.customerName || 'Unknown', g: 0, r: 0 };
-                cm[s.customerId].g += s.total;
-            } else {
-                walkinCredit.g += s.total;
-            }
-        }
-    });
+  const qty  = parseInt(document.getElementById('wfQty')?.value||'0', 10);
+  const note = document.getElementById('wfNote')?.value.trim()||'';
+  const date = document.getElementById('wfDate')?.value||todayStr();
+  const id   = document.getElementById('wfId')?.value||'';
 
-    allCreditPayments.forEach(function(p) {
-        if (!p.customerId || p.customerId === '__walkin__') {
-            walkinCredit.r += p.amount;
-        } else if (cm[p.customerId]) {
-            cm[p.customerId].r += p.amount;
-        }
-    });
+  if (isNaN(qty)||qty<1||qty>9999) { setFieldError('wfQty', t('err_waste_qty')); return; }
 
-    if (walkinCredit.g > 0 || walkinCredit.r > 0) cm['__walkin__'] = walkinCredit;
+  // Warn if waste > 30% of today's production
+  const today      = todayStr();
+  const todayTotal = getState('allSales').filter(s=>s.date===today).reduce((s,x)=>s+(x.qty||0),0);
+  if (todayTotal > 0 && qty / todayTotal > 0.3) {
+    const ok = await showConfirm('⚠️', t('waste_high_warn'),
+      `${qty} waste on ${todayTotal} produced (${Math.round(qty/todayTotal*100)}%).`, { danger: false });
+    if (!ok) return;
+  }
 
-    var list = Object.values(cm).filter(function(c) { return c.g > 0; });
-    list.sort(function(a, b) {
-        var ba = b.g - b.r, aa = a.g - a.r;
-        if (ba > 0 && aa <= 0) return -1;
-        if (aa > 0 && ba <= 0) return  1;
-        return Math.abs(ba) - Math.abs(aa);
-    });
-
-    var totalPending = 0, totalAdvance = 0;
-    list.forEach(function(c) {
-        var bal = c.g - c.r;
-        if (bal > 0) totalPending += bal;
-        else if (bal < 0) totalAdvance += Math.abs(bal);
-    });
-
-    var heroEl = document.getElementById('cTotalPending');
-    if (heroEl) heroEl.textContent = '₹' + totalPending;
-
-    var heroAdv = document.getElementById('cTotalAdvance');
-    if (heroAdv) heroAdv.textContent = '₹' + totalAdvance;
-
-    // FIX: cAdvanceSection ID was duplicated in HTML — both the separator <div>
-    // and the stats card shared the same id. Now the separator is id="cAdvanceSep"
-    // (fixed in index.html) and the stats card retains id="cAdvanceSection".
-    var advSep = document.getElementById('cAdvanceSep');
-    var advSec = document.getElementById('cAdvanceSection');
-    if (advSep) advSep.style.display  = totalAdvance > 0 ? '' : 'none';
-    if (advSec) advSec.style.display  = totalAdvance > 0 ? '' : 'none';
-
-    var ct = document.getElementById('creditList');
-    if (!ct) return;
-    if (!list.length) {
-        ct.innerHTML =
-            '<div class="empty"><div class="empty-ic">🎉</div>' +
-            '<h3>No Pending Credit!</h3>' +
-            '<p>All customers have settled their accounts.</p></div>';
-        return;
+  const data = { qty, note, date };
+  const btn  = document.getElementById('wfSubmitBtn');
+  btnLoading(btn, true);
+  try {
+    if (id) {
+      await withRetry(() => updateDoc(docR('waste', id), data));
+    } else {
+      await withRetry(() => addDoc(biz('waste'), { ...data, createdAt: serverTimestamp() }));
     }
-    var h = '';
-    list.forEach(function(c, i) {
-        var balance   = c.g - c.r;
-        var isAdvance = balance < 0;
-        var isCleared = balance === 0;
-        var cardClass = 'u-card' + (isAdvance ? ' u-advance-card' : isCleared ? ' u-cleared-card' : '');
-        h += '<div class="' + cardClass + '" style="animation-delay:' + (i * 0.04) + 's"' +
-             ' onclick="openCreditPay(\'' + c.id + '\')" role="button" tabindex="0">';
-        h += '<div class="u-info">' +
-             '<div class="u-name">' + esc(c.name) + '</div>' +
-             '<div class="u-sub">Credit: ₹' + c.g + ' • Paid: ₹' + c.r + '</div></div>';
-        if (isAdvance) {
-            h += '<div class="u-amt u-advance">💚 +₹' + Math.abs(balance) + '<br><span class="adv-badge">Advance</span></div>';
-        } else if (isCleared) {
-            h += '<div class="u-amt u-cleared">✅ Cleared</div>';
-        } else {
-            h += '<div class="u-amt">₹' + balance + '</div>';
-        }
-        h += '</div>';
-    });
-    ct.innerHTML = h;
+    showToast(t('waste_saved'), 'success');
+    closeOverlay('wasteFormOverlay');
+  } catch (err) { showToast(t('error_save'), 'error'); }
+  finally { btnLoading(btn, false); }
 }
 
-function openCreditPay(cid) {
-    var cust         = findInArray(allCustomers, cid);
-    var custPayments = allCreditPayments.filter(function(p) {
-        return cid === '__walkin__'
-            ? (!p.customerId || p.customerId === '__walkin__')
-            : p.customerId === cid;
-    });
-    var g = 0, nameFromSales = '';
-    allSales.forEach(function(s) {
-        if (s.paymentType !== 'credit') return;
-        var matches = cid === '__walkin__'
-            ? (!s.customerId || s.customerId === '__walkin__')
-            : (s.customerId === cid);
-        if (matches) { g += s.total; if (s.customerName) nameFromSales = s.customerName; }
-    });
-    var r = 0;
-    custPayments.forEach(function(p) { r += p.amount; });
-    var balance   = g - r;
-    var isAdvance = balance < 0;
-    var name = cust ? cust.name : nameFromSales;
-    if (!name) custPayments.forEach(function(p) { if (p.customerName) name = p.customerName; });
-    if (!name) name = 'Unknown Customer';
-    if (cid === '__walkin__') name = '🚶 Walk-in Customers';
-
-    document.getElementById('crpTitle').textContent   = name;
-    document.getElementById('crpCustId').value        = cid;
-    document.getElementById('crpCustName').value      = name;
-    document.getElementById('crpAmount').value        = '';
-    document.getElementById('crpPayId').value         = '';
-    var crpDate = document.getElementById('crpDate');
-    if (crpDate) { crpDate.value = todayStr(); crpDate.max = todayStr(); }
-    document.getElementById('crpPay').value = 'cash';
-    var tg = document.querySelectorAll('#crpForm .tgl');
-    tg.forEach(function(b) { b.classList.remove('active'); b.setAttribute('aria-pressed', 'false'); });
-    if (tg[0]) { tg[0].classList.add('active'); tg[0].setAttribute('aria-pressed', 'true'); }
-
-    var detailEl = document.getElementById('crpDetail');
-    if (detailEl) {
-        var balLabel = isAdvance ? 'Advance Balance' : (balance === 0 ? 'Status' : 'Pending');
-        var balClass = isAdvance ? 'advance' : (balance === 0 ? 'green' : 'amber');
-        var balText  = isAdvance
-            ? '💚 ₹' + Math.abs(balance) + ' advance'
-            : (balance === 0 ? '✅ Cleared' : '₹' + balance);
-        detailEl.innerHTML =
-            '<div class="ud-row"><span class="ud-label">Total Credit Given</span><span class="ud-val">₹' + g + '</span></div>' +
-            '<div class="ud-row"><span class="ud-label">Total Paid</span><span class="ud-val green">₹' + r + '</span></div>' +
-            '<div class="ud-row"><span class="ud-label">' + balLabel + '</span><span class="ud-val ' + balClass + '">' + balText + '</span></div>';
-        if (isAdvance) {
-            detailEl.innerHTML +=
-                '<div style="background:var(--gnb);border-radius:var(--rx);padding:10px 12px;margin-top:8px;' +
-                'font-size:12px;color:var(--gnd);font-weight:600">' +
-                '💡 This advance can be applied to the next sale</div>';
-        }
-    }
-
-    var hDiv = document.getElementById('crpHistory');
-    if (hDiv) {
-        if (!custPayments.length) {
-            hDiv.innerHTML = '<div class="no-data">No payments recorded yet</div>';
-        } else {
-            var histHtml = '';
-            custPayments.slice().sort(function(a, b) {
-                var ta = a.createdAt
-                    ? (typeof a.createdAt.toDate === 'function' ? a.createdAt.toDate() : new Date(a.createdAt))
-                    : new Date(a.date);
-                var tb = b.createdAt
-                    ? (typeof b.createdAt.toDate === 'function' ? b.createdAt.toDate() : new Date(b.createdAt))
-                    : new Date(b.date);
-                return tb - ta;
-            }).forEach(function(p) {
-                var modeIcon = p.paymentType === 'upi' ? '📱 UPI' : '💵 Cash';
-                var timeStr  = getTime(p.createdAt) || '';
-                histHtml +=
-                    '<div class="pay-hist-item">' +
-                    '<div class="phi-left">' +
-                    '<div class="phi-date">' + fmtDateLong(p.date) + '</div>' +
-                    (timeStr ? '<div class="phi-time">' + timeStr + '</div>' : '') +
-                    '</div>' +
-                    '<div class="phi-right">' +
-                    '<span class="phi-amount">+₹' + p.amount + '</span>' +
-                    '<span class="phi-mode">' + modeIcon + '</span>';
-                if (canModify()) {
-                    histHtml += '<div class="phi-actions">' +
-                        '<button class="ic-btn ib-d" onclick="deleteCreditPayment(\'' + p.id + '\')"' +
-                        ' aria-label="Delete payment" style="width:28px;height:28px;font-size:12px">🗑️</button>' +
-                        '</div>';
-                }
-                histHtml += '</div></div>';
-            });
-            hDiv.innerHTML = histHtml;
-        }
-    }
-    openOverlay('creditPayOverlay');
+export async function deleteWaste(id) {
+  if (!canModify()) { showToast(t('staff_cannot'), 'error'); return; }
+  const w = findById(getState('allWaste'), id);
+  if (!w) return;
+  await softDelete('waste', id, 'Waste record');
 }
 
-function deleteCreditPayment(pid) {
-    if (!canModify()) { showToast('❌ Permission denied', 'error'); return; }
-    showConfirm('🗑️', 'Delete Payment?', 'This payment will be permanently removed.', async function() {
-        try {
-            await fsDelete('creditPayments', pid);
-            showToast('✅ Payment deleted!');
-            closeOverlay('creditPayOverlay');
-        } catch (err) {
-            showToast('❌ Error deleting payment', 'error');
-        }
-    });
+// ── Customer Profile ──────────────────────────────────────────────────────
+export function openCustomerProfile(custId) {
+  const cust = findById(getState('allCustomers'), custId);
+  if (!cust) return;
+
+  const sales    = getState('allSales').filter(s => s.customerId === custId);
+  const payments = getState('allCreditPayments').filter(p => p.customerId === custId);
+  const given    = sales.filter(s=>s.payType==='credit').reduce((s,x)=>s+(x.total||0),0);
+  const paid     = payments.reduce((s,x)=>s+(x.amount||0),0);
+  const balance  = given - paid;
+
+  const container = document.getElementById('customerProfileContent');
+  if (!container) return;
+
+  container.innerHTML = `
+    <div class="profile-header">
+      <div class="profile-name">${esc(cust.name)}</div>
+      <span class="badge badge--${cust.status==='active'?'success':cust.status==='inactive'?'muted':'warning'}">${t('status_'+(cust.status||'active'))}</span>
+    </div>
+    <div class="profile-stats">
+      <div class="profile-stat"><span class="profile-stat__label">Rate</span><span class="profile-stat__val">₹${cust.rate}/roti</span></div>
+      <div class="profile-stat"><span class="profile-stat__label">Order</span><span class="profile-stat__val">${cust.orderType==='fixed'?`Fixed ${cust.qty}/day`:'Variable'}</span></div>
+      <div class="profile-stat"><span class="profile-stat__label">Total sales</span><span class="profile-stat__val">${sales.length}</span></div>
+      <div class="profile-stat"><span class="profile-stat__label">Balance</span><span class="profile-stat__val${balance>0?' stat--owed':''}">${fmtCurrency(balance)}</span></div>
+    </div>
+    ${cust.phone ? `<div class="profile-phone"><a href="tel:${esc(cust.phone)}">${esc(cust.phone)}</a></div>` : ''}
+    <div class="profile-actions">
+      <button class="btn btn--primary btn--sm" onclick="openSaleForm();selectCustomer('${custId}');closeOverlay('customerProfileOverlay')">${t('add_sale')}</button>
+      ${balance>0?`<button class="btn btn--sm" onclick="openCreditPayment('${custId}',${balance});closeOverlay('customerProfileOverlay')">${t('collect_payment')}</button>`:''}
+      ${cust.phone?`<button class="btn btn--whatsapp btn--sm" onclick="sendWhatsAppReminder('${custId}',${balance})">${t('whatsapp_remind')}</button>`:''}
+    </div>
+    <div class="profile-recent-title">Recent Sales</div>
+    ${sales.slice(0,10).map(s=>`
+      <div class="preview-row">
+        <div class="preview-row__info">
+          <span class="preview-row__name">${fmtDate(s.date)} · ${s.qty} roti</span>
+          <span class="preview-row__meta">${s.payType}</span>
+        </div>
+        <span class="preview-row__amt">${fmtCurrency(s.total)}</span>
+      </div>`).join('') || '<p class="empty-mini">No sales yet</p>'}
+  `;
+  openOverlay('customerProfileOverlay');
 }
 
-async function saveCreditPayment(e) {
-    e.preventDefault();
-    var amt = parseFloat(document.getElementById('crpAmount').value);
-    if (!amt || amt <= 0) { showToast('❌ Enter valid amount!', 'error'); return; }
-    var btn = document.getElementById('crpSubmitBtn');
-    btnLoading(btn, true);
-    try {
-        var dateEl = document.getElementById('crpDate');
-        await fsAdd('creditPayments', {
-            customerId:   document.getElementById('crpCustId').value,
-            customerName: document.getElementById('crpCustName').value,
-            amount:       amt,
-            paymentType:  document.getElementById('crpPay').value,
-            date:         (dateEl && dateEl.value) ? dateEl.value : todayStr()
-        });
-        showToast('✅ ₹' + amt + ' payment recorded!');
-        closeOverlay('creditPayOverlay');
-    } catch (err) {
-        console.error('[Credit]', err);
-        showToast('❌ Error saving payment', 'error');
-    } finally {
-        btnLoading(btn, false);
-    }
+// ── Batch delete (with 499-op chunking) ──────────────────────────────────
+export async function batchDeleteSelected(col, ids) {
+  if (!canModify()) { showToast(t('staff_cannot'), 'error'); return; }
+  if (!ids.length) return;
+  const CHUNK = 499;
+  for (let i = 0; i < ids.length; i += CHUNK) {
+    const chunk = ids.slice(i, i + CHUNK);
+    const batch = writeBatch(db);
+    chunk.forEach(id => batch.delete(docR(col, id)));
+    await withRetry(() => batch.commit());
+  }
 }
 
-console.log('[Data] Meri Dukaan v7.0 — Data module loaded');
+// Make functions global for HTML onclick
+const _globals = {
+  openSaleForm, closeSaleForm, saveSale, deleteSale, calcSaleTotal, openUpiCollect,
+  filterCustPicker, selectCustomer, searchSales, setSalesFilter, setSalesSort,
+  openCustForm, closeCustForm, saveCustomer, deleteCust, toggleCustStatus, searchCustomers,
+  openCreditPayment, saveCreditPayment, crpSetFull, sendWhatsAppReminder, shareCreditStatement,
+  openExpForm, closeExpForm, saveExp, deleteExp,
+  openWasteForm, closeWasteForm, saveWaste, deleteWaste,
+  markAllFixedDone, qsMarkDone, qsSkip, qsUndoSkip,
+  openCustomerProfile, renderSales, loadCusts, loadCredit, loadExps, loadWasteList, loadQuickSale,
+};
+Object.assign(window, _globals);
+
+export { loadQuickSale };
+console.log('[data] Meri Dukaan v8.0 — data module ready');

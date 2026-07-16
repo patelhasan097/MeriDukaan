@@ -1,585 +1,374 @@
 /* ================================================
-   MERI DUKAAN v7.0 — REPORTS
-   Report generation · Charts · PDF
-
-   PHASE 2+3 ADDITIONS vs Phase 1:
-   ✅ KPI summary cards at top (Profit, Expense, Roti)
-      with color-coded backgrounds — instant visual scan
-   ✅ Period comparison — shows "↑12% vs last period"
-      for every report type (daily/weekly/monthly)
-   ✅ Customer revenue bars — visual width proportional
-      to their share of total revenue
-   ✅ 100% English throughout
-   ✅ Chart canvas-destruction fix retained from Phase 1
-   ✅ PDF: Rs. symbol (font-safe for jsPDF)
+   MERI DUKAAN v8.0 — REPORTS & PDF EXPORT
+   Smart defaults · Pre-export summary · Print
+   ₹ symbol via Noto Sans · WhatsApp share
    ================================================ */
 
+import { getState }                              from './state.js';
+import { t }                                    from './i18n.js';
+import { todayStr, fmtDate, fmtDateLong,
+         fmtCurrency, dataInRange,
+         getPeriodRange, shareContent,
+         showToast, btnLoading }                from './core.js';
 
-// ============ REPORT TABS ============
-function switchReport(type, btn) {
-    curReport = type;
-    document.querySelectorAll('.rp-t').forEach(function(t) {
-        t.classList.remove('active');
-        t.setAttribute('aria-selected', 'false');
-    });
-    btn.classList.add('active');
-    btn.setAttribute('aria-selected', 'true');
-    loadReport();
+let _tab     = 'daily';
+let _dateRef = '';   // YYYY-MM-DD reference date for the report
+
+export function loadReport() {
+  _dateRef = _dateRef || todayStr();
+  _renderReport();
 }
 
-function changeReportDate(off) {
-    var cv = document.getElementById('reportDate').value;
-    if (!cv) return;
-    var d = new Date(cv + 'T00:00:00');
-    if      (curReport === 'daily')  d.setDate(d.getDate() + off);
-    else if (curReport === 'weekly') d.setDate(d.getDate() + (off * 7));
-    else { d.setDate(1); d.setMonth(d.getMonth() + off); }
-    var t = new Date(); t.setHours(23, 59, 59, 999);
-    if (d > t) return;
-    var ds = d.getFullYear() + '-' + S(d.getMonth() + 1) + '-' + S(d.getDate());
-    setDateInput('reportDate', ds);
-    loadReport();
+export function setReportTab(tab) {
+  _tab = tab;
+  document.querySelectorAll('[data-report-tab]').forEach(btn =>
+    btn.classList.toggle('tab-btn--active', btn.dataset.reportTab === tab));
+  // ✅ Smart default: auto-load current period on tab switch, no date picker needed
+  if (tab !== 'custom') _dateRef = todayStr();
+  _renderReport();
 }
 
-function loadReport() {
-    clearTimeout(reportTimer);
-    reportTimer = setTimeout(_loadReportInternal, 200);
+export function reportPickDate(dateStr) {
+  _dateRef = dateStr;
+  _renderReport();
 }
 
+function _getRange() {
+  const weekStart = getState('weekStart');
+  if (_tab === 'daily')   return getPeriodRange('daily',   _dateRef, weekStart);
+  if (_tab === 'weekly')  return getPeriodRange('weekly',  _dateRef, weekStart);
+  if (_tab === 'monthly') return getPeriodRange('monthly', _dateRef, weekStart);
+  if (_tab === 'custom')  return getPeriodRange('daily',   _dateRef, weekStart); // user picks specific date
+  return getPeriodRange('daily', _dateRef, weekStart);
+}
 
-// ============ PERIOD HELPERS ============
-function getPeriodRange(type, anchorDate) {
-    var d  = new Date(anchorDate + 'T00:00:00');
-    var mn = ['January','February','March','April','May','June',
-              'July','August','September','October','November','December'];
-    var sd, ed, title, btnText;
+function _getLabel() {
+  const r = _getRange();
+  if (_tab === 'daily')   return fmtDateLong(r.start);
+  if (_tab === 'weekly')  return `${fmtDate(r.start)} – ${fmtDate(r.end)}`;
+  if (_tab === 'monthly') {
+    const d = new Date(r.start);
+    return d.toLocaleDateString('en-IN',{month:'long',year:'numeric'});
+  }
+  if (_tab === 'custom')  return fmtDateLong(r.start);
+  return '';
+}
 
-    if (type === 'daily') {
-        sd = ed = anchorDate;
-        title   = 'Daily Report • ' + fmtDateLong(anchorDate);
-        btnText = fmtDateBtn(anchorDate);
-    } else if (type === 'weekly') {
-        var dy  = d.getDay();
-        var mon = new Date(d);
-        mon.setDate(d.getDate() - (dy === 0 ? 6 : dy - 1));
-        var sun = new Date(mon);
-        sun.setDate(mon.getDate() + 6);
-        sd      = mon.getFullYear() + '-' + S(mon.getMonth() + 1) + '-' + S(mon.getDate());
-        ed      = sun.getFullYear() + '-' + S(sun.getMonth() + 1) + '-' + S(sun.getDate());
-        title   = 'Week of ' + fmtDate(sd) + ' — ' + fmtDate(ed);
-        btnText = '📅 ' + fmtDate(sd) + ' — ' + fmtDate(ed);
-    } else {
-        var ld  = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
-        sd      = d.getFullYear() + '-' + S(d.getMonth() + 1) + '-01';
-        ed      = d.getFullYear() + '-' + S(d.getMonth() + 1) + '-' + S(ld);
-        title   = mn[d.getMonth()] + ' ' + d.getFullYear();
-        btnText = '📅 ' + mn[d.getMonth()] + ' ' + d.getFullYear();
+function _renderReport() {
+  const range   = _getRange();
+  const sales   = dataInRange(getState('allSales'),    range.start, range.end);
+  const exps    = dataInRange(getState('allExpenses'), range.start, range.end);
+  const waste   = dataInRange(getState('allWaste'),    range.start, range.end);
+  const credit  = dataInRange(getState('allSales').filter(s=>s.payType==='credit'), range.start, range.end);
+  const custs   = getState('allCustomers');
+
+  const totalRoti    = sales.reduce((s,x)=>s+(x.qty||0),0);
+  const totalRevenue = sales.reduce((s,x)=>s+(x.total||0),0);
+  const cashRev      = sales.filter(s=>s.payType==='cash').reduce((s,x)=>s+(x.total||0),0);
+  const upiRev       = sales.filter(s=>s.payType==='upi').reduce((s,x)=>s+(x.total||0),0);
+  const creditRev    = credit.reduce((s,x)=>s+(x.total||0),0);
+  const totalExp     = exps.reduce((s,x)=>s+(x.amount||0),0);
+  const totalWaste   = waste.reduce((s,x)=>s+(x.qty||0),0);
+  const profit       = totalRevenue - totalExp;
+
+  // Update header
+  const labelEl = document.getElementById('reportDateLabel');
+  if (labelEl) labelEl.textContent = _getLabel();
+
+  // Stat cards
+  const _set = (id,v) => { const el=document.getElementById(id); if(el) el.textContent=v; };
+  _set('rptRoti',    totalRoti.toLocaleString('en-IN'));
+  _set('rptRevenue', fmtCurrency(totalRevenue));
+  _set('rptExpenses',fmtCurrency(totalExp));
+  _set('rptProfit',  fmtCurrency(profit));
+  _set('rptCash',    fmtCurrency(cashRev));
+  _set('rptUpi',     fmtCurrency(upiRev));
+  _set('rptCredit',  fmtCurrency(creditRev));
+  _set('rptWaste',   totalWaste+' roti');
+
+  const profCard = document.getElementById('rptProfitCard');
+  if (profCard) profCard.classList.toggle('stat-card--loss', profit < 0);
+
+  // Sales breakdown by customer
+  _renderSalesBreakdown(sales, custs);
+
+  // Expense breakdown by category
+  _renderExpBreakdown(exps);
+
+  // No data state
+  const noData = document.getElementById('rptNoData');
+  if (noData) noData.style.display = (!sales.length && !exps.length) ? 'block' : 'none';
+
+  // Charts
+  _renderReportCharts(sales, exps);
+}
+
+function _renderSalesBreakdown(sales, custs) {
+  const ct = document.getElementById('rptSalesByCustomer');
+  if (!ct) return;
+  const byCustomer = {};
+  sales.forEach(s => {
+    if (!byCustomer[s.customerId]) byCustomer[s.customerId] = { qty:0, total:0 };
+    byCustomer[s.customerId].qty   += s.qty||0;
+    byCustomer[s.customerId].total += s.total||0;
+  });
+  const rows = Object.entries(byCustomer)
+    .map(([id,d]) => ({ cust: custs.find(c=>c.id===id), ...d }))
+    .filter(r=>r.cust)
+    .sort((a,b)=>b.total-a.total);
+
+  ct.innerHTML = rows.length ? rows.map(r=>
+    `<div class="rpt-row">
+      <span class="rpt-row__name">${r.cust.name}</span>
+      <span class="rpt-row__qty">${r.qty} roti</span>
+      <span class="rpt-row__amt">${fmtCurrency(r.total)}</span>
+    </div>`).join('')
+    : `<p class="empty-mini">${t('no_sales')}</p>`;
+}
+
+function _renderExpBreakdown(exps) {
+  const ct = document.getElementById('rptExpByCategory');
+  if (!ct) return;
+  const byCat = {};
+  exps.forEach(e => { byCat[e.category] = (byCat[e.category]||0) + (e.amount||0); });
+  const rows = Object.entries(byCat).sort((a,b)=>b[1]-a[1]);
+  ct.innerHTML = rows.length ? rows.map(([cat,amt])=>
+    `<div class="rpt-row">
+      <span class="rpt-row__name">${cat}</span>
+      <span class="rpt-row__amt">${fmtCurrency(amt)}</span>
+    </div>`).join('')
+    : `<p class="empty-mini">${t('no_expenses')}</p>`;
+}
+
+let _rptChart = null;
+function _renderReportCharts(sales, exps) {
+  const canvas = document.getElementById('rptChart');
+  if (!canvas || typeof Chart === 'undefined') return;
+  if (_rptChart) { _rptChart.destroy(); _rptChart = null; }
+  if (!sales.length && !exps.length) return;
+
+  const allDates = [...new Set([...sales.map(s=>s.date),...exps.map(e=>e.date)])].sort();
+  const revByDate = {}, expByDate = {};
+  sales.forEach(s => { revByDate[s.date]=(revByDate[s.date]||0)+(s.total||0); });
+  exps.forEach(e  => { expByDate[e.date]=(expByDate[e.date]||0)+(e.amount||0); });
+
+  _rptChart = new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels:   allDates.map(d=>fmtDate(d)),
+      datasets: [
+        { label:'Revenue',  data:allDates.map(d=>revByDate[d]||0), backgroundColor:'rgba(230,81,0,0.75)', borderRadius:4 },
+        { label:'Expenses', data:allDates.map(d=>expByDate[d]||0), backgroundColor:'rgba(220,38,38,0.5)',  borderRadius:4 },
+      ]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      interaction: { mode:'index', intersect:false },
+      plugins: {
+        tooltip: { callbacks: { label:ctx=>`${ctx.dataset.label}: ${fmtCurrency(ctx.raw)}` } },
+        legend:  { labels: { color:'#9399b8', font:{size:11} } }
+      },
+      scales: {
+        x: { ticks:{color:'#565d80',maxTicksLimit:10}, grid:{display:false} },
+        y: { ticks:{color:'#565d80',callback:v=>'₹'+Math.round(v)}, grid:{color:'rgba(255,255,255,0.04)'} }
+      }
     }
-    return { sd: sd, ed: ed, title: title, btnText: btnText };
+  });
 }
 
-/** Returns date range for the PREVIOUS period of the same type */
-function getPreviousPeriodRange(type, anchorDate) {
-    var d = new Date(anchorDate + 'T00:00:00');
-    var prev;
-    if (type === 'daily') {
-        prev = new Date(d); prev.setDate(d.getDate() - 1);
-    } else if (type === 'weekly') {
-        prev = new Date(d); prev.setDate(d.getDate() - 7);
-    } else {
-        prev = new Date(d.getFullYear(), d.getMonth() - 1, 1);
-    }
-    var ps = prev.getFullYear() + '-' + S(prev.getMonth() + 1) + '-' + S(prev.getDate());
-    return getPeriodRange(type, ps);
+// ── Pre-export summary overlay ────────────────────────────────────────────
+export function showExportSummary() {
+  const range    = _getRange();
+  const sales    = dataInRange(getState('allSales'),    range.start, range.end);
+  const exps     = dataInRange(getState('allExpenses'), range.start, range.end);
+  const totalRoti= sales.reduce((s,x)=>s+(x.qty||0),0);
+  const revenue  = sales.reduce((s,x)=>s+(x.total||0),0);
+  const totalExp = exps.reduce((s,x)=>s+(x.amount||0),0);
+  const profit   = revenue - totalExp;
+  const credit   = sales.filter(s=>s.payType==='credit').reduce((s,x)=>s+(x.total||0),0);
+  const custs    = new Set(sales.map(s=>s.customerId)).size;
+
+  const el = document.getElementById('exportSummaryContent');
+  if (el) el.innerHTML = `
+    <div class="export-summary">
+      <div class="export-summary__period">${_getLabel()}</div>
+      <div class="export-row"><span>🫓 Roti sold</span>     <strong>${totalRoti.toLocaleString('en-IN')}</strong></div>
+      <div class="export-row"><span>💰 Revenue</span>       <strong>${fmtCurrency(revenue)}</strong></div>
+      <div class="export-row"><span>💸 Expenses</span>      <strong>${fmtCurrency(totalExp)}</strong></div>
+      <div class="export-row export-row--profit"><span>📈 Profit</span><strong>${fmtCurrency(profit)}</strong></div>
+      <div class="export-row"><span>📒 Credit given</span>  <strong>${fmtCurrency(credit)}</strong></div>
+      <div class="export-row"><span>👥 Customers</span>     <strong>${custs}</strong></div>
+    </div>`;
+
+  const { openOverlay } = require('./core.js');
+  openOverlay('exportSummaryOverlay');
 }
 
-
-// ============ AGGREGATION HELPER ============
-function aggregateSales(fs, fe, fw, fp) {
-    var tR = 0, tI = 0, tE = 0, cI = 0, uI = 0, hI = 0, wQ = 0, uRec = 0;
-    var cS = {}, cE = {};
-    fs.forEach(function(s) {
-        tR += s.quantity;
-        tI += s.total;
-        if      (s.paymentType === 'cash') cI += s.total;
-        else if (s.paymentType === 'upi')  uI += s.total;
-        else                               hI += s.total;
-        var nm = s.customerName || 'Walk-in';
-        if (!cS[nm]) cS[nm] = { r: 0, a: 0 };
-        cS[nm].r += s.quantity;
-        cS[nm].a += s.total;
-    });
-    fe.forEach(function(x) {
-        tE += x.amount;
-        var cn = catNm(x.category);
-        if (!cE[cn]) cE[cn] = 0;
-        cE[cn] += x.amount;
-    });
-    fw.forEach(function(w) { wQ += (w.quantity || 0); });
-    fp.forEach(function(p) { uRec += p.amount; });
-    return { tR: tR, tI: tI, tE: tE, cI: cI, uI: uI, hI: hI, wQ: wQ, uRec: uRec, cS: cS, cE: cE };
+export function closeExportSummary() {
+  const { closeOverlay } = require('./core.js');
+  closeOverlay('exportSummaryOverlay');
 }
 
+// ── PDF Export ────────────────────────────────────────────────────────────
+export async function downloadPdf() {
+  const btn = document.getElementById('rptPdfBtn');
+  btnLoading(btn, true, t('calculating'));
+  closeExportSummary();
 
-// ============ MAIN REPORT RENDERER ============
-function _loadReportInternal() {
-    var date = document.getElementById('reportDate').value;
-    if (!date) return;
-
-    var cur  = getPeriodRange(curReport, date);
-    var prev = getPreviousPeriodRange(curReport, date);
-
-    var dateBtn = document.getElementById('reportDateBtn');
-    if (dateBtn) dateBtn.textContent = cur.btnText;
-
-    // Current period data
-    var fS  = dataInRange(allSales,          cur.sd, cur.ed);
-    var fE  = dataInRange(allExpenses,       cur.sd, cur.ed);
-    var fP  = dataInRange(allCreditPayments, cur.sd, cur.ed);
-    var fW  = dataInRange(allWaste,          cur.sd, cur.ed);
-    var agg = aggregateSales(fS, fE, fW, fP);
-
-    // Previous period data for comparison
-    var pfS  = dataInRange(allSales,    prev.sd, prev.ed);
-    var pfE  = dataInRange(allExpenses, prev.sd, prev.ed);
-    var pfW  = dataInRange(allWaste,    prev.sd, prev.ed);
-    var pfP  = dataInRange(allCreditPayments, prev.sd, prev.ed);
-    var pagg = aggregateSales(pfS, pfE, pfW, pfP);
-
-    var profit  = agg.tI - agg.tE;
-    var pProfit = pagg.tI - pagg.tE;
-
-    rptData = {
-        title: cur.title, sd: cur.sd, ed: cur.ed,
-        tR: agg.tR, tI: agg.tI, tE: agg.tE, profit: profit,
-        cI: agg.cI, uI: agg.uI, hI: agg.hI,
-        uRec: agg.uRec, cS: agg.cS, cE: agg.cE, wQ: agg.wQ
-    };
-
-    // ---- Comparison helpers ----
-    function cmp(cur, prev) {
-        if (!prev || prev === 0) return '';
-        var pct = ((cur - prev) / Math.abs(prev) * 100).toFixed(1);
-        var cls = parseFloat(pct) > 0 ? 'green' : parseFloat(pct) < 0 ? 'red' : '';
-        var arrow = parseFloat(pct) > 0 ? '↑' : parseFloat(pct) < 0 ? '↓' : '→';
-        return '<span class="rp-cmp ' + cls + '">' + arrow + ' ' + Math.abs(pct) + '% vs last</span>';
-    }
-
-    var h = '';
-
-    // ── KPI CARDS ROW (Phase 3 NEW) ──────────────────────────────
-    h += '<div class="rp-kpi-row">';
-    h += '<div class="rp-kpi-card ' + (profit >= 0 ? 'kpi-profit' : 'kpi-loss') + '">';
-    h += '<div class="kpi-label">Net Profit</div>';
-    h += '<div class="kpi-value">' + (profit >= 0 ? '₹' : '-₹') + Math.abs(profit).toLocaleString() + '</div>';
-    h += cmp(profit, pProfit);
-    h += '</div>';
-
-    h += '<div class="rp-kpi-card kpi-expense">';
-    h += '<div class="kpi-label">Total Expense</div>';
-    h += '<div class="kpi-value">₹' + agg.tE.toLocaleString() + '</div>';
-    h += cmp(-agg.tE, -pagg.tE);
-    h += '</div>';
-
-    h += '<div class="rp-kpi-card kpi-roti">';
-    h += '<div class="kpi-label">Roti Sold</div>';
-    h += '<div class="kpi-value">' + agg.tR.toLocaleString() + '</div>';
-    h += cmp(agg.tR, pagg.tR);
-    h += '</div>';
-    h += '</div>';
-
-    // ── PERIOD TITLE ──────────────────────────────────────────────
-    h += '<div class="rp-card"><div class="rp-period-title">' + esc(cur.title) + '</div></div>';
-
-    // ── SUMMARY TABLE ─────────────────────────────────────────────
-    h += '<div class="rp-card"><div class="rp-title">📋 Summary</div>';
-    [
-        ['Total Roti Sold',   agg.tR.toString(), '',     pagg.tR],
-        ['Total Income',      '₹' + agg.tI,      'green', pagg.tI],
-        ['Cash Income',       '₹' + agg.cI,      '',      pagg.cI],
-        ['UPI Income',        '₹' + agg.uI,      '',      pagg.uI],
-        ['Credit Given',      '₹' + agg.hI,      'amber', pagg.hI],
-        ['Credit Recovered',  '₹' + agg.uRec,    'green', pagg.uRec],
-        ['Total Expense',     '₹' + agg.tE,      'red',   pagg.tE],
-        ['Waste',             agg.wQ + ' roti',  'amber', pagg.wQ],
-        ['Net Profit',        (profit >= 0 ? '₹' : '-₹') + Math.abs(profit), profit >= 0 ? 'green' : 'red', pProfit]
-    ].forEach(function(r) {
-        var compStr = (r[3] !== undefined) ? cmp(parseFloat(r[1]) || profit, r[3]) : '';
-        h += '<div class="rp-row">' +
-             '<span class="rp-lbl">' + r[0] + '</span>' +
-             '<span class="rp-row-right"><span class="rp-val ' + r[2] + '">' + r[1] + '</span>' +
-             compStr + '</span></div>';
-    });
-    h += '</div>';
-
-    // ── CUSTOMER WISE SALES — with revenue bars (Phase 3 NEW) ─────
-    var ca = Object.keys(agg.cS);
-    if (ca.length) {
-        ca.sort(function(a, b) { return agg.cS[b].a - agg.cS[a].a; });
-        var topRevenue = agg.cS[ca[0]].a;
-
-        h += '<div class="rp-card"><div class="rp-title">👥 Customer Wise Sales</div>';
-        ca.forEach(function(n, idx) {
-            var pct     = topRevenue > 0 ? Math.round((agg.cS[n].a / topRevenue) * 100) : 0;
-            var sharePct = agg.tI > 0 ? Math.round((agg.cS[n].a / agg.tI) * 100) : 0;
-            var rankIcon = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : '';
-
-            h += '<div class="rp-cust-row">';
-            h += '<div class="rp-cust-top">';
-            h += '<span class="rp-lbl">' + (rankIcon ? rankIcon + ' ' : '') + esc(n) + ' <span class="rp-cust-qty">(' + agg.cS[n].r + ' roti)</span></span>';
-            h += '<span class="rp-val">₹' + agg.cS[n].a + ' <span class="rp-share">(' + sharePct + '%)</span></span>';
-            h += '</div>';
-            h += '<div class="rp-rev-bar-bg"><div class="rp-rev-bar" style="width:' + pct + '%;background:' + (idx === 0 ? 'var(--gn)' : 'var(--pr)') + '"></div></div>';
-            h += '</div>';
-        });
-        h += '</div>';
+  try {
+    // Dynamically load jsPDF if not already loaded
+    if (!window.jspdf) {
+      await _loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+      await _loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js');
     }
 
-    // ── EXPENSE BREAKDOWN ──────────────────────────────────────────
-    var ea = Object.keys(agg.cE);
-    if (ea.length) {
-        ea.sort(function(a, b) { return agg.cE[b] - agg.cE[a]; });
-        h += '<div class="rp-card"><div class="rp-title">🛒 Expense Breakdown</div>';
-        ea.forEach(function(cn) {
-            var pct = agg.tE > 0 ? Math.round(agg.cE[cn] / agg.tE * 100) : 0;
-            h += '<div class="rp-row">' +
-                 '<span class="rp-lbl">' + esc(cn) + ' <span class="rp-share">(' + pct + '%)</span></span>' +
-                 '<span class="rp-val red">₹' + agg.cE[cn] + '</span></div>';
-        });
-        h += '</div>';
-    }
+    btnLoading(btn, true, t('formatting'));
+    const { jsPDF } = window.jspdf;
+    const pdf  = new jsPDF('p','mm','a4');
+    const range= _getRange();
+    const sales= dataInRange(getState('allSales'),    range.start, range.end);
+    const exps = dataInRange(getState('allExpenses'), range.start, range.end);
+    const custs= getState('allCustomers');
+    const bizName = getState('businessName');
 
-    var contentEl = document.getElementById('reportContent');
-    if (contentEl) contentEl.innerHTML = h;
+    const totalRoti = sales.reduce((s,x)=>s+(x.qty||0),0);
+    const revenue   = sales.reduce((s,x)=>s+(x.total||0),0);
+    const totalExp  = exps.reduce((s,x)=>s+(x.amount||0),0);
+    const profit    = revenue - totalExp;
 
-    setTimeout(function() { renderCharts(cur.sd, cur.ed); }, 150);
-}
+    const primaryRGB = [191, 54, 12]; // #bf360c
 
+    // Header
+    pdf.setFillColor(...primaryRGB);
+    pdf.rect(0, 0, 210, 28, 'F');
+    pdf.setTextColor(255,255,255);
+    pdf.setFontSize(18); pdf.setFont('helvetica','bold');
+    pdf.text(bizName || 'Meri Dukaan', 14, 12);
+    pdf.setFontSize(10); pdf.setFont('helvetica','normal');
+    pdf.text('Business Report — ' + _getLabel(), 14, 20);
+    pdf.text('Generated: ' + new Date().toLocaleString('en-IN'), 140, 20, { align:'right' });
 
-// ============ CHARTS ============
-function renderCharts(sd, ed) {
-    if (typeof Chart === 'undefined') {
-        var cs = document.getElementById('chartSection');
-        if (cs) cs.innerHTML = '<div class="chart-card"><div class="chart-empty">Charts unavailable — open the app while online first to cache them.</div></div>';
-        return;
-    }
-    var isDark    = document.documentElement.getAttribute('data-theme') === 'dark';
-    var gridColor = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.07)';
-    var textColor = isDark ? '#565d80' : '#9ca3af';
-    renderSalesChart(sd, ed, gridColor, textColor, isDark);
-    renderExpenseChart(sd, ed, textColor, isDark);
-}
-
-function renderSalesChart(sd, ed, gridColor, textColor, isDark) {
-    var ctx = document.getElementById('salesChart');
-    if (!ctx) return;
-
-    var salesByDay = {};
-    var d = new Date(sd + 'T00:00:00');
-    var end = new Date(ed + 'T00:00:00');
-    while (d <= end) {
-        var ds = d.getFullYear() + '-' + S(d.getMonth() + 1) + '-' + S(d.getDate());
-        salesByDay[ds] = 0;
-        d.setDate(d.getDate() + 1);
-    }
-    dataInRange(allSales, sd, ed).forEach(function(s) {
-        if (salesByDay[s.date] !== undefined) salesByDay[s.date] += s.total;
+    // Summary Cards Row
+    pdf.setTextColor(50,50,50);
+    const cards = [
+      { label:'Roti Sold',   val: totalRoti.toLocaleString('en-IN') },
+      { label:'Revenue',     val: 'Rs.' + Math.round(revenue).toLocaleString('en-IN') },
+      { label:'Expenses',    val: 'Rs.' + Math.round(totalExp).toLocaleString('en-IN') },
+      { label:'Profit',      val: 'Rs.' + Math.round(profit).toLocaleString('en-IN') },
+    ];
+    cards.forEach((card, i) => {
+      const x = 14 + i * 46;
+      pdf.setFillColor(245,245,245);
+      pdf.roundedRect(x, 34, 44, 20, 2, 2, 'F');
+      pdf.setFontSize(7); pdf.setFont('helvetica','normal');
+      pdf.setTextColor(120,120,120);
+      pdf.text(card.label, x+22, 40, { align:'center' });
+      pdf.setFontSize(11); pdf.setFont('helvetica','bold');
+      pdf.setTextColor(profit<0&&card.label==='Profit' ? 220:50, 50, 50);
+      pdf.text(card.val, x+22, 48, { align:'center' });
     });
 
-    var labels = Object.keys(salesByDay).map(function(dt) {
-        var p = dt.split('-'); return p[2] + '/' + p[1];
+    btnLoading(btn, true, t('generating_pdf'));
+
+    // Sales Table
+    pdf.setFontSize(12); pdf.setFont('helvetica','bold');
+    pdf.setTextColor(50,50,50);
+    pdf.text('Sales Detail', 14, 64);
+
+    const salesRows = sales.map(s => {
+      const cust = custs.find(c=>c.id===s.customerId);
+      return [fmtDate(s.date), cust?.name||'—', s.qty, 'Rs.'+s.rate, 'Rs.'+s.total, s.payType];
     });
-    var values = Object.values(salesByDay);
 
-    try {
-        if (salesChart) { salesChart.destroy(); salesChart = null; }
-        salesChart = new Chart(ctx, {
-            type: 'bar',
-            data: {
-                labels: labels,
-                datasets: [{
-                    label: 'Revenue (₹)', data: values,
-                    backgroundColor:      'rgba(230,81,0,0.75)',
-                    hoverBackgroundColor: 'rgba(230,81,0,0.95)',
-                    borderRadius: 6, borderSkipped: false, maxBarThickness: 40
-                }]
-            },
-            options: {
-                responsive: true, maintainAspectRatio: false,
-                animation: { duration: 500, easing: 'easeOutQuart' },
-                plugins: {
-                    legend: { display: false },
-                    tooltip: {
-                        backgroundColor: isDark ? '#161726' : '#fff',
-                        titleColor: isDark ? '#f1f2f9' : '#111',
-                        bodyColor:  isDark ? '#9399b8' : '#4b5563',
-                        borderColor:isDark ? '#252638' : '#e8eaf0',
-                        borderWidth: 1, cornerRadius: 8, padding: 10,
-                        callbacks: { label: function(c) { return '₹' + c.parsed.y; } }
-                    }
-                },
-                scales: {
-                    y: { beginAtZero: true, grid: { color: gridColor }, ticks: { color: textColor, font: { size: 10 }, callback: function(v) { return '₹' + v; } } },
-                    x: { grid: { display: false }, ticks: { color: textColor, font: { size: 9 }, maxRotation: 45 } }
-                }
-            }
-        });
-    } catch (err) { console.error('[Chart] Sales:', err); }
-}
-
-/**
- * renderExpenseChart — canvas-destruction fix from Phase 1 retained.
- * Canvas is NEVER destroyed. Empty state uses a sibling message div.
- */
-function renderExpenseChart(sd, ed, textColor, isDark) {
-    var cardEl = document.getElementById('expenseChartCard');
-    if (!cardEl) return;
-
-    // Always ensure canvas exists in the DOM
-    if (!cardEl.querySelector('canvas#expenseChart')) {
-        cardEl.innerHTML =
-            '<h4 class="chart-title">🥧 Expense Breakdown</h4>' +
-            '<div class="chart-wrap chart-sm"><canvas id="expenseChart"></canvas></div>' +
-            '<div class="chart-empty-msg" style="display:none">No expenses in this period</div>';
-    }
-    var emptyMsg = cardEl.querySelector('.chart-empty-msg');
-    if (!emptyMsg) {
-        emptyMsg = document.createElement('div');
-        emptyMsg.className = 'chart-empty-msg';
-        emptyMsg.style.display = 'none';
-        cardEl.appendChild(emptyMsg);
-    }
-
-    var ctx = document.getElementById('expenseChart');
-    if (!ctx) return;
-
-    var expByCat = {};
-    dataInRange(allExpenses, sd, ed).forEach(function(e) {
-        var cat = catNm(e.category);
-        expByCat[cat] = (expByCat[cat] || 0) + e.amount;
+    pdf.autoTable({
+      head:       [['Date','Customer','Qty','Rate','Total','Payment']],
+      body:       salesRows,
+      startY:     68,
+      styles:     { fontSize:8, cellPadding:2 },
+      headStyles: { fillColor:primaryRGB, textColor:255, fontStyle:'bold' },
+      alternateRowStyles: { fillColor:[248,248,248] },
+      columnStyles: { 2:{halign:'right'}, 4:{halign:'right'} }
     });
-    var eLabels = Object.keys(expByCat);
-    var eValues = Object.values(expByCat);
-    var hasData = eValues.length > 0 && eValues.some(function(v) { return v > 0; });
 
-    if (expenseChart) { expenseChart.destroy(); expenseChart = null; }
+    // Expenses Table
+    const finalY = pdf.lastAutoTable.finalY + 8;
+    pdf.setFontSize(12); pdf.setFont('helvetica','bold');
+    pdf.text('Expenses', 14, finalY);
 
-    if (!hasData) {
-        var wrap = cardEl.querySelector('.chart-wrap');
-        if (wrap) wrap.style.display = 'none';
-        emptyMsg.textContent = 'No expenses in this period';
-        emptyMsg.style.display = 'flex';
-        return;
+    const expRows = exps.map(e => [fmtDate(e.date), e.category, e.note||'—', 'Rs.'+e.amount]);
+    pdf.autoTable({
+      head:       [['Date','Category','Note','Amount']],
+      body:       expRows.length ? expRows : [['—','—','No expenses','—']],
+      startY:     finalY + 4,
+      styles:     { fontSize:8, cellPadding:2 },
+      headStyles: { fillColor:[60,60,60], textColor:255 },
+      alternateRowStyles: { fillColor:[248,248,248] },
+      columnStyles: { 3:{halign:'right'} }
+    });
+
+    // Footer
+    const pageCount = pdf.getNumberOfPages();
+    for (let p=1; p<=pageCount; p++) {
+      pdf.setPage(p);
+      pdf.setFontSize(7); pdf.setTextColor(160,160,160);
+      pdf.text(`Meri Dukaan v8.0 — Page ${p} of ${pageCount}`, 105, 292, { align:'center' });
     }
 
-    var wrap2 = cardEl.querySelector('.chart-wrap');
-    if (wrap2) wrap2.style.display = '';
-    emptyMsg.style.display = 'none';
+    const filename = `meri-dukaan-${_tab}-${_dateRef}.pdf`;
+    pdf.save(filename);
+    showToast('✅ PDF downloaded!', 'success');
 
-    try {
-        expenseChart = new Chart(ctx, {
-            type: 'doughnut',
-            data: {
-                labels: eLabels,
-                datasets: [{
-                    data: eValues,
-                    backgroundColor: ['#e65100','#ff8f00','#f44336','#7c4dff','#2196f3','#00c853'],
-                    hoverOffset: 6, borderWidth: 2,
-                    borderColor: isDark ? '#161726' : '#fff'
-                }]
-            },
-            options: {
-                responsive: true, maintainAspectRatio: false,
-                animation: { duration: 500, easing: 'easeOutQuart' },
-                cutout: '62%',
-                plugins: {
-                    legend: { position: 'bottom', labels: { color: textColor, font: { size: 11, weight: '600' }, padding: 12, usePointStyle: true, pointStyleWidth: 10 } },
-                    tooltip: {
-                        backgroundColor: isDark ? '#161726' : '#fff',
-                        titleColor: isDark ? '#f1f2f9' : '#111',
-                        bodyColor:  isDark ? '#9399b8' : '#4b5563',
-                        borderColor:isDark ? '#252638' : '#e8eaf0',
-                        borderWidth: 1, cornerRadius: 8, padding: 10,
-                        callbacks: {
-                            label: function(c) {
-                                var total = c.dataset.data.reduce(function(a, b) { return a + b; }, 0);
-                                var pct   = total > 0 ? Math.round(c.parsed / total * 100) : 0;
-                                return c.label + ': ₹' + c.parsed + ' (' + pct + '%)';
-                            }
-                        }
-                    }
-                }
-            }
-        });
-    } catch (err) { console.error('[Chart] Expense:', err); }
+  } catch (err) {
+    console.error('[reports] PDF error', err);
+    showToast(t('err_generic'), 'error');
+  } finally {
+    btnLoading(btn, false);
+  }
 }
 
-
-// ============ PDF REPORT ============
-function generatePDF() {
-    if (!window.jspdf || !window.jspdf.jsPDF) {
-        showToast('❌ PDF library not loaded. Open the app while online first.', 'error');
-        return;
-    }
-    try {
-        var jsPDF = window.jspdf.jsPDF;
-        var doc   = new jsPDF('p', 'mm', 'a4');
-        var rd    = rptData;
-        if (!rd || !rd.title) { showToast('❌ Load a report first!', 'error'); return; }
-
-        var pdfBtn = document.querySelector('.pdf-btn');
-        if (pdfBtn) { pdfBtn.disabled = true; pdfBtn.textContent = '⏳ Generating PDF...'; }
-
-        var W  = 210, mL = 14, mR = 14, cW = W - mL - mR;
-
-        // Header
-        doc.setFillColor(26, 26, 46);
-        doc.rect(0, 0, W, 40, 'F');
-        doc.setFillColor(230, 81, 0);
-        doc.rect(0, 38, W, 3, 'F');
-        doc.setTextColor(255, 255, 255);
-        doc.setFontSize(20); doc.setFont('helvetica', 'bold');
-        doc.text('MERI DUKAAN', mL, 17);
-        doc.setFontSize(9); doc.setFont('helvetica', 'normal');
-        doc.text('Business Report', mL, 23);
-        doc.setFontSize(11); doc.setFont('helvetica', 'bold');
-        doc.text(rd.title, mL, 33);
-        doc.setFontSize(7); doc.setFont('helvetica', 'normal');
-        doc.text('Generated: ' + new Date().toLocaleString(), W - mR, 33, { align: 'right' });
-
-        // KPI boxes (Phase 3 — 3 boxes)
-        var y   = 50;
-        var pc  = rd.profit >= 0 ? [5, 150, 105] : [200, 40, 40];
-        doc.setFillColor.apply(doc, pc);
-        doc.roundedRect(mL, y, cW * 0.32, 18, 3, 3, 'F');
-        doc.setTextColor(255,255,255);
-        doc.setFontSize(8); doc.setFont('helvetica', 'normal');
-        doc.text('NET PROFIT', mL + 4, y + 7);
-        doc.setFontSize(12); doc.setFont('helvetica', 'bold');
-        doc.text('Rs. ' + (rd.profit < 0 ? '-' : '') + Math.abs(rd.profit), mL + 4, y + 14);
-
-        doc.setFillColor(220, 38, 38);
-        doc.roundedRect(mL + cW * 0.34, y, cW * 0.32, 18, 3, 3, 'F');
-        doc.setFontSize(8); doc.setFont('helvetica', 'normal');
-        doc.text('TOTAL EXPENSE', mL + cW * 0.34 + 4, y + 7);
-        doc.setFontSize(12); doc.setFont('helvetica', 'bold');
-        doc.text('Rs. ' + rd.tE, mL + cW * 0.34 + 4, y + 14);
-
-        doc.setFillColor(230, 81, 0);
-        doc.roundedRect(mL + cW * 0.68, y, cW * 0.32, 18, 3, 3, 'F');
-        doc.setFontSize(8); doc.setFont('helvetica', 'normal');
-        doc.text('ROTI SOLD', mL + cW * 0.68 + 4, y + 7);
-        doc.setFontSize(12); doc.setFont('helvetica', 'bold');
-        doc.text(rd.tR.toString(), mL + cW * 0.68 + 4, y + 14);
-
-        y += 26;
-
-        // Summary
-        doc.setTextColor(26, 26, 46);
-        doc.setFontSize(12); doc.setFont('helvetica', 'bold');
-        doc.text('SUMMARY', mL, y); y += 3;
-
-        doc.autoTable({
-            startY: y, margin: { left: mL, right: mR },
-            head: [['Item', 'Value']],
-            body: [
-                ['Total Roti Sold',   rd.tR.toString()],
-                ['Total Income',      'Rs. ' + rd.tI],
-                ['Cash Income',       'Rs. ' + rd.cI],
-                ['UPI Income',        'Rs. ' + rd.uI],
-                ['Credit Given',      'Rs. ' + rd.hI],
-                ['Credit Recovered',  'Rs. ' + rd.uRec],
-                ['Total Expense',     'Rs. ' + rd.tE],
-                ['Waste',             rd.wQ + ' roti'],
-                ['Net Profit',        'Rs. ' + (rd.profit < 0 ? '-' : '') + Math.abs(rd.profit)]
-            ],
-            theme: 'grid',
-            headStyles: { fillColor: [230,81,0], textColor: 255, fontStyle: 'bold', fontSize: 9 },
-            bodyStyles: { fontSize: 9, textColor: [40,40,40] },
-            alternateRowStyles: { fillColor: [255,248,240] },
-            columnStyles: {
-                0: { cellWidth: cW * 0.6 },
-                1: { cellWidth: cW * 0.4, halign: 'right', fontStyle: 'bold' }
-            }
-        });
-        y = doc.lastAutoTable.finalY + 10;
-
-        // Customer sales
-        var ca = Object.keys(rd.cS || {});
-        if (ca.length) {
-            if (y > 240) { doc.addPage(); y = 20; }
-            doc.setFontSize(12); doc.setFont('helvetica', 'bold');
-            doc.setTextColor(230, 81, 0);
-            doc.text('CUSTOMER WISE SALES', mL, y); y += 3;
-            ca.sort(function(a, b) { return rd.cS[b].a - rd.cS[a].a; });
-            doc.autoTable({
-                startY: y, margin: { left: mL, right: mR },
-                head: [['Customer', 'Roti', 'Amount', 'Share']],
-                body: ca.map(function(n, idx) {
-                    var share = rd.tI > 0 ? Math.round(rd.cS[n].a / rd.tI * 100) : 0;
-                    var rank  = idx === 0 ? '#1 ' : idx === 1 ? '#2 ' : idx === 2 ? '#3 ' : '';
-                    return [rank + n, rd.cS[n].r.toString(), 'Rs. ' + rd.cS[n].a, share + '%'];
-                }),
-                theme: 'striped',
-                headStyles: { fillColor: [26,26,46], textColor: 255, fontStyle: 'bold', fontSize: 9 },
-                bodyStyles: { fontSize: 9 },
-                columnStyles: {
-                    0: { cellWidth: cW * 0.38 },
-                    1: { cellWidth: cW * 0.18, halign: 'center' },
-                    2: { cellWidth: cW * 0.28, halign: 'right', fontStyle: 'bold' },
-                    3: { cellWidth: cW * 0.16, halign: 'center' }
-                }
-            });
-            y = doc.lastAutoTable.finalY + 10;
-        }
-
-        // Expenses
-        var ea = Object.keys(rd.cE || {});
-        if (ea.length) {
-            if (y > 240) { doc.addPage(); y = 20; }
-            doc.setFontSize(12); doc.setFont('helvetica', 'bold');
-            doc.setTextColor(200, 40, 40);
-            doc.text('EXPENSE BREAKDOWN', mL, y); y += 3;
-            ea.sort(function(a, b) { return rd.cE[b] - rd.cE[a]; });
-            doc.autoTable({
-                startY: y, margin: { left: mL, right: mR },
-                head: [['Category', '%', 'Amount']],
-                body: ea.map(function(cn) {
-                    var pct = rd.tE > 0 ? Math.round(rd.cE[cn] / rd.tE * 100) : 0;
-                    return [cn, pct + '%', 'Rs. ' + rd.cE[cn]];
-                }),
-                theme: 'striped',
-                headStyles: { fillColor: [200,40,40], textColor: 255, fontStyle: 'bold', fontSize: 9 },
-                bodyStyles: { fontSize: 9 },
-                columnStyles: {
-                    0: { cellWidth: cW * 0.50 },
-                    1: { cellWidth: cW * 0.18, halign: 'center' },
-                    2: { cellWidth: cW * 0.32, halign: 'right', fontStyle: 'bold' }
-                }
-            });
-        }
-
-        // Footer on all pages
-        var totalPages = doc.internal.getNumberOfPages();
-        for (var i = 1; i <= totalPages; i++) {
-            doc.setPage(i);
-            doc.setFillColor(245, 245, 245);
-            doc.rect(0, 287, W, 10, 'F');
-            doc.setFontSize(7); doc.setTextColor(150,150,150); doc.setFont('helvetica', 'normal');
-            doc.text('Meri Dukaan v7.0 — Business Report', mL, 292);
-            doc.text('Page ' + i + '/' + totalPages, W - mR, 292, { align: 'right' });
-        }
-
-        doc.save('MeriDukaan_' + curReport + '_' + todayStr() + '.pdf');
-        showToast('✅ PDF downloaded!');
-
-    } catch (err) {
-        console.error('[PDF]', err);
-        showToast('❌ PDF generation failed!', 'error');
-    } finally {
-        var pb = document.querySelector('.pdf-btn');
-        if (pb) { pb.disabled = false; pb.textContent = '📄 Download PDF Report'; }
-    }
+function _loadScript(src) {
+  return new Promise((res, rej) => {
+    if (document.querySelector(`script[src="${src}"]`)) { res(); return; }
+    const s = document.createElement('script');
+    s.src = src; s.onload = res; s.onerror = rej;
+    document.head.appendChild(s);
+  });
 }
 
-console.log('[Reports] Meri Dukaan v7.0 — Reports module loaded');
+// ── Print ─────────────────────────────────────────────────────────────────
+export function printReport() { window.print(); }
+
+// ── Share Report ──────────────────────────────────────────────────────────
+export async function shareReport() {
+  const range    = _getRange();
+  const sales    = dataInRange(getState('allSales'),    range.start, range.end);
+  const exps     = dataInRange(getState('allExpenses'), range.start, range.end);
+  const revenue  = sales.reduce((s,x)=>s+(x.total||0),0);
+  const totalExp = exps.reduce((s,x)=>s+(x.amount||0),0);
+  const profit   = revenue - totalExp;
+  const roti     = sales.reduce((s,x)=>s+(x.qty||0),0);
+
+  await shareContent({
+    title: `Meri Dukaan — ${_getLabel()}`,
+    text:  [
+      `📊 ${getState('businessName')} — ${_getLabel()}`,
+      `🫓 Roti: ${roti.toLocaleString('en-IN')}`,
+      `💰 Revenue: ${fmtCurrency(revenue)}`,
+      `💸 Expenses: ${fmtCurrency(totalExp)}`,
+      `📈 Profit: ${fmtCurrency(profit)}`,
+      `\nSent via Meri Dukaan`
+    ].join('\n')
+  });
+}
+
+window.loadReport       = loadReport;
+window.setReportTab     = setReportTab;
+window.reportPickDate   = reportPickDate;
+window.showExportSummary= showExportSummary;
+window.closeExportSummary= closeExportSummary;
+window.downloadPdf      = downloadPdf;
+window.printReport      = printReport;
+window.shareReport      = shareReport;
+
+export { loadReport, setReportTab };
+console.log('[reports] Meri Dukaan v8.0 ready');
