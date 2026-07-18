@@ -1,0 +1,72 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function authed()        { return request.auth != null; }
+    function uid()           { return request.auth.uid; }
+    function email()         { return request.auth.token.email; }
+    function biz(id)         { return get(/databases/$(database)/documents/businesses/$(id)).data; }
+    function isOwner(id)     { return authed() && biz(id).ownerUid == uid(); }
+    function isMember(id)    {
+      return authed() && (
+        biz(id).ownerUid == uid() ||
+        (biz(id).keys().hasAll(['memberEmails']) && email() in biz(id).memberEmails)
+      );
+    }
+    match /businesses/{bizId} {
+      allow read:   if isMember(bizId);
+      allow create: if authed() && request.resource.data.ownerUid == uid();
+      allow update: if isOwner(bizId);
+      allow delete: if isOwner(bizId);
+      match /sales/{id} {
+        allow read:   if isMember(bizId);
+        allow create: if isMember(bizId)
+          && request.resource.data.qty  is  int
+          && request.resource.data.qty  > 0
+          && request.resource.data.qty  < 10000
+          && request.resource.data.total is number
+          && request.resource.data.total > 0;
+        allow update: if isMember(bizId);
+        allow delete: if isOwner(bizId);
+      }
+      match /expenses/{id} {
+        allow read:   if isMember(bizId);
+        allow create: if isMember(bizId)
+          && request.resource.data.amount is number
+          && request.resource.data.amount > 0
+          && request.resource.data.amount < 1000000;
+        allow update: if isMember(bizId);
+        allow delete: if isOwner(bizId);
+      }
+      match /customers/{id} {
+        allow read:   if isMember(bizId);
+        allow create: if isOwner(bizId);
+        allow update: if isOwner(bizId);
+        allow delete: if isOwner(bizId);
+      }
+      match /waste/{id} {
+        allow read:   if isMember(bizId);
+        allow create: if isMember(bizId)
+          && request.resource.data.qty is int
+          && request.resource.data.qty > 0
+          && request.resource.data.qty < 10000;
+        allow update: if isMember(bizId);
+        allow delete: if isOwner(bizId);
+      }
+      match /creditPayments/{id} {
+        allow read:   if isMember(bizId);
+        allow create: if isMember(bizId)
+          && request.resource.data.amount is number
+          && request.resource.data.amount > 0;
+        allow update: if isOwner(bizId);
+        allow delete: if isOwner(bizId);
+      }
+      match /notes/{id} {
+        allow read:   if isMember(bizId);
+        allow create: if isMember(bizId);
+        allow update: if isMember(bizId);
+        allow delete: if isOwner(bizId);
+      }
+    }
+    match /{doc=**} { allow read, write: if false; }
+  }
+}

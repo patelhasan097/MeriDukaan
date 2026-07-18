@@ -1,0 +1,24 @@
+{
+  "name": "Meri Dukaan — Business Manager",
+  "short_name": "Meri Dukaan",
+  "description": "Roti Business Manager — Sales, Credit, Expenses, Analytics. Free forever.",
+  "start_url": "./",
+  "scope": "./",
+  "id": "meri-dukaan-v8",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0d0e18",
+  "theme_color": "#e65100",
+  "categories": ["business","finance","productivity"],
+  "icons": [
+    {"src":"icons/icon-192.png","sizes":"192x192","type":"image/png","purpose":"any"},
+    {"src":"icons/icon-512.png","sizes":"512x512","type":"image/png","purpose":"any"},
+    {"src":"icons/icon-maskable-192.png","sizes":"192x192","type":"image/png","purpose":"maskable"},
+    {"src":"icons/icon-maskable-512.png","sizes":"512x512","type":"image/png","purpose":"maskable"}
+  ],
+  "shortcuts": [
+    {"name":"Quick Sale","url":"./?s=quickSaleScreen","icons":[{"src":"icons/icon-192.png","sizes":"192x192"}]},
+    {"name":"New Sale","url":"./?s=salesScreen","icons":[{"src":"icons/icon-192.png","sizes":"192x192"}]},
+    {"name":"Credit","url":"./?s=creditScreen","icons":[{"src":"icons/icon-192.png","sizes":"192x192"}]}
+  ]
+}
