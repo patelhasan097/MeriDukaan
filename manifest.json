@@ -9,16 +9,17 @@
   "orientation": "portrait",
   "background_color": "#0d0e18",
   "theme_color": "#e65100",
-  "categories": ["business","finance","productivity"],
   "icons": [
-    {"src":"icons/icon-192.png","sizes":"192x192","type":"image/png","purpose":"any"},
-    {"src":"icons/icon-512.png","sizes":"512x512","type":"image/png","purpose":"any"},
-    {"src":"icons/icon-maskable-192.png","sizes":"192x192","type":"image/png","purpose":"maskable"},
-    {"src":"icons/icon-maskable-512.png","sizes":"512x512","type":"image/png","purpose":"maskable"}
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23e65100'/><text y='.9em' font-size='75' x='12'>🫓</text></svg>",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
   ],
   "shortcuts": [
-    {"name":"Quick Sale","url":"./?s=quickSaleScreen","icons":[{"src":"icons/icon-192.png","sizes":"192x192"}]},
-    {"name":"New Sale","url":"./?s=salesScreen","icons":[{"src":"icons/icon-192.png","sizes":"192x192"}]},
-    {"name":"Credit","url":"./?s=creditScreen","icons":[{"src":"icons/icon-192.png","sizes":"192x192"}]}
+    {"name":"Quick Sale","url":"./?s=quickSaleScreen"},
+    {"name":"New Sale","url":"./?s=salesScreen"},
+    {"name":"Credit","url":"./?s=creditScreen"}
   ]
 }

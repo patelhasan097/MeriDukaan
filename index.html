@@ -10,9 +10,10 @@
 <meta name="description" content="Roti Business Manager — Sales, Credit, Expenses, Analytics">
 <title>Meri Dukaan</title>
 <link rel="manifest" href="manifest.json">
-<link rel="apple-touch-icon" href="icons/icon-192.png">
+<!-- Inline favicon to avoid 404 -->
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🫓</text></svg>">
 <meta name="theme-color" content="#e65100">
-<!-- ✅ Font once only (preconnect + single link — was double loaded in v7) -->
+<!-- Font: single load with preconnect -->
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap">
@@ -35,62 +36,59 @@
   <span>📴</span> You are offline — changes will sync when reconnected
 </div>
 
-<!-- SKIP LINK -->
 <a href="#app" class="skip-link">Skip to content</a>
 
 <div id="app">
 
-<!-- ═══ BOTTOM NAV (SVG icons — no emoji, renders same on all Android OEMs) ═══ -->
+<!-- ═══ BOTTOM NAV ═══ -->
 <nav id="bottomNav" role="navigation" aria-label="Main navigation" style="display:none">
-  <button class="nav-btn" data-nav="dashboardScreen"  onclick="goTo('dashboardScreen')"  aria-label="Home">
+  <button class="nav-btn" data-nav="dashboardScreen"  onclick="goTo('dashboardScreen')" aria-label="Home">
     <svg class="nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-    <span class="nav-lbl" data-i18n="nav_home">Home</span>
+    <span class="nav-lbl">Home</span>
   </button>
   <button class="nav-btn" data-nav="quickSaleScreen" onclick="goTo('quickSaleScreen')" aria-label="Quick Sale">
     <svg class="nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-    <span class="nav-lbl" data-i18n="nav_quick">Quick</span>
+    <span class="nav-lbl">Quick</span>
   </button>
-  <button class="nav-btn" data-nav="salesScreen"     onclick="goTo('salesScreen')"     aria-label="Sales">
-    <svg class="nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-    <span class="nav-lbl" data-i18n="nav_sales">Sales</span>
+  <button class="nav-btn" data-nav="salesScreen" onclick="goTo('salesScreen')" aria-label="Sales">
+    <svg class="nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+    <span class="nav-lbl">Sales</span>
   </button>
-  <button class="nav-btn" data-nav="customerScreen"  onclick="goTo('customerScreen')"  aria-label="Customers">
+  <button class="nav-btn" data-nav="customerScreen" onclick="goTo('customerScreen')" aria-label="Customers">
     <svg class="nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-    <span class="nav-lbl" data-i18n="nav_customers">Customers</span>
+    <span class="nav-lbl">Customers</span>
   </button>
-  <button class="nav-btn" data-nav="creditScreen"    onclick="goTo('creditScreen')"    aria-label="Credit">
+  <button class="nav-btn" data-nav="creditScreen" onclick="goTo('creditScreen')" aria-label="Credit">
     <svg class="nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
-    <span class="nav-lbl" data-i18n="nav_credit">Credit</span>
+    <span class="nav-lbl">Credit</span>
   </button>
-  <button class="nav-btn" data-nav="expenseScreen"   onclick="goTo('expenseScreen')"   aria-label="Expenses">
+  <button class="nav-btn" data-nav="expenseScreen" onclick="goTo('expenseScreen')" aria-label="Expenses">
     <svg class="nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
-    <span class="nav-lbl" data-i18n="nav_expenses">Expenses</span>
+    <span class="nav-lbl">Expenses</span>
   </button>
-  <button class="nav-btn" data-nav="reportScreen"    onclick="goTo('reportScreen')"    aria-label="Reports">
+  <button class="nav-btn" data-nav="reportScreen" onclick="goTo('reportScreen')" aria-label="Reports">
     <svg class="nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
-    <span class="nav-lbl" data-i18n="nav_reports">Reports</span>
+    <span class="nav-lbl">Reports</span>
   </button>
   <button class="nav-btn" data-nav="analyticsScreen" onclick="goTo('analyticsScreen')" aria-label="Analytics">
     <svg class="nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-    <span class="nav-lbl" data-i18n="nav_analytics">Analytics</span>
+    <span class="nav-lbl">Analytics</span>
   </button>
-  <button class="nav-btn" data-nav="notebookScreen"  onclick="goTo('notebookScreen')"  aria-label="Notes">
+  <button class="nav-btn" data-nav="notebookScreen" onclick="goTo('notebookScreen')" aria-label="Notes">
     <svg class="nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-    <span class="nav-lbl" data-i18n="nav_notes">Notes</span>
+    <span class="nav-lbl">Notes</span>
   </button>
-  <button class="nav-btn" data-nav="wasteScreen"     onclick="goTo('wasteScreen')"     aria-label="Waste">
+  <button class="nav-btn" data-nav="wasteScreen" onclick="goTo('wasteScreen')" aria-label="Waste">
     <svg class="nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-    <span class="nav-lbl" data-i18n="nav_waste">Waste</span>
+    <span class="nav-lbl">Waste</span>
   </button>
-  <button class="nav-btn" data-nav="settingsScreen"  onclick="goTo('settingsScreen')"  aria-label="Settings">
+  <button class="nav-btn" data-nav="settingsScreen" onclick="goTo('settingsScreen')" aria-label="Settings">
     <svg class="nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-    <span class="nav-lbl" data-i18n="nav_settings">Settings</span>
+    <span class="nav-lbl">Settings</span>
   </button>
 </nav>
 
-<!-- ═══ SCREENS ═══ -->
-
-<!-- LOGIN -->
+<!-- ═══ LOGIN ═══ -->
 <section id="loginScreen" class="screen" aria-label="Login" aria-hidden="true">
   <div class="login-bg"><div class="lb lb1"></div><div class="lb lb2"></div><div class="lb lb3"></div></div>
   <div class="login-content">
@@ -103,6 +101,16 @@
       Sign in with Google
     </button>
     <p style="font-size:11px;color:var(--tx3);margin-top:8px">Free forever · No subscription · Your data is yours</p>
+    <!-- ✅ Rules helper — shows if Firestore permissions error -->
+    <div id="rulesHelperMsg" style="display:none;margin-top:20px;padding:16px;background:rgba(220,38,38,0.1);border:1px solid rgba(220,38,38,0.4);border-radius:12px;font-size:12px;color:#fca5a5;text-align:left;max-width:360px">
+      <strong style="display:block;margin-bottom:8px;font-size:14px">⚠️ Firestore Rules Not Published</strong>
+      1. Go to <a href="https://console.firebase.google.com" target="_blank" style="color:#ff9d5c">console.firebase.google.com</a><br>
+      2. Select your project → <strong>Firestore Database</strong><br>
+      3. Click <strong>Rules</strong> tab<br>
+      4. Replace all content with the rules from <code>firestore.rules</code> file<br>
+      5. Click <strong>Publish</strong><br><br>
+      Then refresh this page and sign in again.
+    </div>
   </div>
 </section>
 
@@ -113,7 +121,7 @@
     <h2 class="pin-label" id="pinLabel">Create a 4-digit PIN</h2>
     <div id="pinDots" class="pin-dots"><span class="pin-dot"></span><span class="pin-dot"></span><span class="pin-dot"></span><span class="pin-dot"></span></div>
     <span id="pinSr" class="sr-only" aria-live="polite"></span>
-    <div class="pin-pad" role="group" aria-label="Number pad">
+    <div class="pin-pad">
       <button class="pin-key" onclick="pinKey('1')">1</button><button class="pin-key" onclick="pinKey('2')">2</button><button class="pin-key" onclick="pinKey('3')">3</button>
       <button class="pin-key" onclick="pinKey('4')">4</button><button class="pin-key" onclick="pinKey('5')">5</button><button class="pin-key" onclick="pinKey('6')">6</button>
       <button class="pin-key" onclick="pinKey('7')">7</button><button class="pin-key" onclick="pinKey('8')">8</button><button class="pin-key" onclick="pinKey('9')">9</button>
@@ -129,7 +137,7 @@
     <h2 class="pin-label">Enter your PIN</h2>
     <div id="pinDots" class="pin-dots"><span class="pin-dot"></span><span class="pin-dot"></span><span class="pin-dot"></span><span class="pin-dot"></span></div>
     <span id="pinSr" class="sr-only" aria-live="polite"></span>
-    <div class="pin-pad" role="group">
+    <div class="pin-pad">
       <button class="pin-key" onclick="pinKey('1')">1</button><button class="pin-key" onclick="pinKey('2')">2</button><button class="pin-key" onclick="pinKey('3')">3</button>
       <button class="pin-key" onclick="pinKey('4')">4</button><button class="pin-key" onclick="pinKey('5')">5</button><button class="pin-key" onclick="pinKey('6')">6</button>
       <button class="pin-key" onclick="pinKey('7')">7</button><button class="pin-key" onclick="pinKey('8')">8</button><button class="pin-key" onclick="pinKey('9')">9</button>
@@ -143,26 +151,24 @@
 <section id="dashboardScreen" class="screen" aria-label="Dashboard" aria-hidden="true">
   <div class="pg-head">
     <div><div id="dashGreeting" class="dash-greet">Good morning!</div></div>
-    <div style="display:flex;gap:8px;align-items:center">
-      <button class="icon-btn" onclick="goTo('settingsScreen')" aria-label="Settings" style="position:relative">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-        <span id="notifBadge" class="notif-badge" style="display:none"></span>
-      </button>
-    </div>
+    <button class="icon-btn" onclick="goTo('settingsScreen')" aria-label="Settings" style="position:relative">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      <span id="notifBadge" class="notif-badge" style="display:none"></span>
+    </button>
   </div>
   <div class="period-bar" role="group">
-    <button class="period-btn period-btn--active" data-period="today"  onclick="setDashPeriod('today',this)"  data-i18n="period_today">Today</button>
-    <button class="period-btn" data-period="week"  onclick="setDashPeriod('week',this)"  data-i18n="period_week">Week</button>
-    <button class="period-btn" data-period="month" onclick="setDashPeriod('month',this)" data-i18n="period_month">Month</button>
-    <button class="period-btn" data-period="year"  onclick="setDashPeriod('year',this)"  data-i18n="period_year">Year</button>
+    <button class="period-btn period-btn--active" data-period="today"  onclick="setDashPeriod('today')">Today</button>
+    <button class="period-btn" data-period="week"  onclick="setDashPeriod('week')">Week</button>
+    <button class="period-btn" data-period="month" onclick="setDashPeriod('month')">Month</button>
+    <button class="period-btn" data-period="year"  onclick="setDashPeriod('year')">Year</button>
   </div>
   <div class="stat-grid">
-    <div class="stat-card stat-card--hero"><div class="stat-lbl" data-i18n="cash_in_hand">Cash in Hand</div><div class="stat-val" id="dashCashHand">₹0</div><div class="stat-hint">Cash sales − expenses</div></div>
-    <div class="stat-card" id="dashProfitCard"><div class="stat-lbl" data-i18n="net_profit">Net Profit</div><div class="stat-val" id="dashProfit">₹0</div></div>
-    <div class="stat-card"><div class="stat-lbl" data-i18n="total_sales">Sales</div><div class="stat-val" id="dashRevenue">₹0</div></div>
-    <div class="stat-card stat-card--exp"><div class="stat-lbl" data-i18n="total_expenses">Expenses</div><div class="stat-val" id="dashExpenses">₹0</div></div>
-    <div class="stat-card"><div class="stat-lbl" data-i18n="upi_received">UPI</div><div class="stat-val" id="dashUpi">₹0</div></div>
-    <div class="stat-card stat-card--credit"><div class="stat-lbl" data-i18n="credit_given">Credit</div><div class="stat-val" id="dashCredit">₹0</div></div>
+    <div class="stat-card stat-card--hero"><div class="stat-lbl">Cash in Hand</div><div class="stat-val" id="dashCashHand">₹0</div><div class="stat-hint">Cash sales − expenses</div></div>
+    <div class="stat-card" id="dashProfitCard"><div class="stat-lbl">Net Profit</div><div class="stat-val" id="dashProfit">₹0</div></div>
+    <div class="stat-card"><div class="stat-lbl">Sales</div><div class="stat-val" id="dashRevenue">₹0</div></div>
+    <div class="stat-card stat-card--exp"><div class="stat-lbl">Expenses</div><div class="stat-val" id="dashExpenses">₹0</div></div>
+    <div class="stat-card"><div class="stat-lbl">UPI</div><div class="stat-val" id="dashUpi">₹0</div></div>
+    <div class="stat-card stat-card--credit"><div class="stat-lbl">Credit</div><div class="stat-val" id="dashCredit">₹0</div></div>
   </div>
   <div class="dash-sec"><div class="dash-sec-head"><h3 class="dash-sec-title">Recent Sales</h3><button class="link-btn" onclick="goTo('salesScreen')">See all →</button></div><div id="dashSalesPreview"></div></div>
   <div class="dash-sec"><div class="dash-sec-head"><h3 class="dash-sec-title">Recent Expenses</h3><button class="link-btn" onclick="goTo('expenseScreen')">See all →</button></div><div id="dashExpPreview"></div></div>
@@ -181,14 +187,14 @@
 <section id="salesScreen" class="screen" aria-label="Sales" aria-hidden="true">
   <div class="pg-head"><h1 class="pg-title">Sales</h1><button class="btn btn--primary btn--sm" onclick="openSaleForm()">+ New</button></div>
   <div class="search-bar"><svg class="sb-ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input type="search" class="sb-input" placeholder="Search sales…" oninput="searchSales(this.value)" aria-label="Search sales"></div>
-  <div class="filter-bar"><div class="filter-pills"><button class="filter-btn filter-btn--active" data-sf="all" onclick="setSalesFilter('all',this)">All</button><button class="filter-btn" data-sf="cash" onclick="setSalesFilter('cash',this)">💵 Cash</button><button class="filter-btn" data-sf="upi" onclick="setSalesFilter('upi',this)">📱 UPI</button><button class="filter-btn" data-sf="credit" onclick="setSalesFilter('credit',this)">📒 Credit</button></div><select class="sort-sel" onchange="setSalesSort(this.value)" aria-label="Sort"><option value="newest">Newest</option><option value="amount">Amount ↓</option><option value="name">Name A–Z</option></select></div>
+  <div class="filter-bar"><div class="filter-pills"><button class="filter-btn filter-btn--active" data-sf="all" onclick="setSalesFilter('all',this)">All</button><button class="filter-btn" data-sf="cash" onclick="setSalesFilter('cash',this)">💵 Cash</button><button class="filter-btn" data-sf="upi" onclick="setSalesFilter('upi',this)">📱 UPI</button><button class="filter-btn" data-sf="credit" onclick="setSalesFilter('credit',this)">📒 Credit</button></div><select class="sort-sel" onchange="setSalesSort(this.value)"><option value="newest">Newest</option><option value="amount">Amount ↓</option><option value="name">Name A–Z</option></select></div>
   <div id="salesList" role="list"></div>
 </section>
 
 <!-- CUSTOMERS -->
 <section id="customerScreen" class="screen" aria-label="Customers" aria-hidden="true">
   <div class="pg-head"><h1 class="pg-title">Customers</h1><button class="btn btn--primary btn--sm" onclick="openCustForm()">+ Add</button></div>
-  <div class="search-bar"><svg class="sb-ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input type="search" class="sb-input" placeholder="Search customers…" oninput="searchCustomers(this.value)" aria-label="Search customers"></div>
+  <div class="search-bar"><svg class="sb-ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input type="search" class="sb-input" placeholder="Search customers…" oninput="searchCustomers(this.value)"></div>
   <div id="custList" role="list"></div>
 </section>
 
@@ -213,9 +219,9 @@
 
 <!-- REPORTS -->
 <section id="reportScreen" class="screen" aria-label="Reports" aria-hidden="true">
-  <div class="pg-head"><h1 class="pg-title">Reports</h1><div style="display:flex;gap:8px"><button class="icon-btn" onclick="showExportSummary()" aria-label="PDF" title="Download PDF"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg></button><button class="icon-btn" onclick="printReport()" aria-label="Print"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg></button><button class="icon-btn" onclick="shareReport()" aria-label="Share"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg></button></div></div>
-  <div class="tab-bar" role="tablist"><button class="tab-btn tab-btn--active" data-rt="daily" role="tab" onclick="setReportTab('daily')">Daily</button><button class="tab-btn" data-rt="weekly" role="tab" onclick="setReportTab('weekly')">Weekly</button><button class="tab-btn" data-rt="monthly" role="tab" onclick="setReportTab('monthly')">Monthly</button><button class="tab-btn" data-rt="custom" role="tab" onclick="setReportTab('custom')">Custom</button></div>
-  <div class="rpt-date-bar"><span id="rptLabel" class="rpt-date-lbl"></span><button class="icon-btn" onclick="openDatePicker('',rptPickDate)" aria-label="Pick date"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></button></div>
+  <div class="pg-head"><h1 class="pg-title">Reports</h1><div style="display:flex;gap:8px"><button class="icon-btn" onclick="showExportSummary()" title="PDF"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg></button><button class="icon-btn" onclick="printReport()" title="Print"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg></button><button class="icon-btn" onclick="shareReport()" title="Share"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg></button></div></div>
+  <div class="tab-bar"><button class="tab-btn tab-btn--active" data-rt="daily" onclick="setReportTab('daily')">Daily</button><button class="tab-btn" data-rt="weekly" onclick="setReportTab('weekly')">Weekly</button><button class="tab-btn" data-rt="monthly" onclick="setReportTab('monthly')">Monthly</button><button class="tab-btn" data-rt="custom" onclick="setReportTab('custom')">Custom</button></div>
+  <div class="rpt-date-bar"><span id="rptLabel" class="rpt-date-lbl"></span><button class="icon-btn" onclick="openDatePicker('',rptPickDate)" title="Pick date"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></button></div>
   <div id="rptNoData" class="empty-state" style="display:none"><div class="empty-ic">📊</div><h3>No data for this period</h3></div>
   <div class="stat-grid stat-grid--rpt"><div class="stat-card"><div class="stat-lbl">Roti</div><div class="stat-val" id="rptRoti">0</div></div><div class="stat-card"><div class="stat-lbl">Revenue</div><div class="stat-val" id="rptRev">₹0</div></div><div class="stat-card" id="rptProfitCard"><div class="stat-lbl">Profit</div><div class="stat-val" id="rptProfit">₹0</div></div><div class="stat-card stat-card--exp"><div class="stat-lbl">Expenses</div><div class="stat-val" id="rptExp">₹0</div></div><div class="stat-card"><div class="stat-lbl">Cash</div><div class="stat-val" id="rptCash">₹0</div></div><div class="stat-card"><div class="stat-lbl">UPI</div><div class="stat-val" id="rptUpi">₹0</div></div></div>
   <div class="chart-wrap"><canvas id="rptChart" height="180"></canvas></div>
@@ -226,7 +232,7 @@
 <!-- ANALYTICS -->
 <section id="analyticsScreen" class="screen" aria-label="Analytics" aria-hidden="true">
   <div class="pg-head"><h1 class="pg-title">Analytics</h1></div>
-  <div class="window-bar" role="group"><button class="window-btn" data-aw="7" onclick="setAnalyticsWindow(7,this)">7D</button><button class="window-btn window-btn--active" data-aw="30" onclick="setAnalyticsWindow(30,this)">30D</button><button class="window-btn" data-aw="90" onclick="setAnalyticsWindow(90,this)">90D</button><button class="window-btn" data-aw="9999" onclick="setAnalyticsWindow(9999,this)">All</button></div>
+  <div class="window-bar"><button class="window-btn" data-aw="7" onclick="setAnalyticsWindow(7,this)">7D</button><button class="window-btn window-btn--active" data-aw="30" onclick="setAnalyticsWindow(30,this)">30D</button><button class="window-btn" data-aw="90" onclick="setAnalyticsWindow(90,this)">90D</button><button class="window-btn" data-aw="9999" onclick="setAnalyticsWindow(9999,this)">All</button></div>
   <div id="analyticsNoData" class="empty-state" style="display:none"><div class="empty-ic">📊</div><h3>Need 3+ days of data</h3></div>
   <div class="an-card"><h3 class="an-title">💰 Per-Roti Economics</h3><div class="pr-grid"><div class="pr-item"><span>Revenue/roti</span><strong id="arRevPR">₹0</strong></div><div class="pr-item pr-item--cost"><span>Cost/roti</span><strong id="arCostPR">₹0</strong></div><div class="pr-item pr-item--waste"><span>Waste cost</span><strong id="arWastePR">₹0</strong></div><div class="pr-item pr-item--profit"><span>Net profit</span><strong id="arProfitPR">₹0</strong></div><div class="pr-item pr-item--margin"><span>Margin</span><strong id="arMargin">0%</strong></div></div><div id="arBreakdown"></div></div>
   <div class="an-card"><h3 class="an-title">📈 Revenue Trend</h3><div class="chart-wrap"><canvas id="revChart" height="200"></canvas></div></div>
@@ -244,20 +250,11 @@
 
 <!-- SETTINGS -->
 <section id="settingsScreen" class="screen" aria-label="Settings" aria-hidden="true">
-  <div class="pg-head"><h1 class="pg-title">Settings</h1><button class="icon-btn" onclick="signOutApp()" aria-label="Sign out" title="Sign out"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></button></div>
+  <div class="pg-head"><h1 class="pg-title">Settings</h1><button class="icon-btn" onclick="signOutApp()" title="Sign out"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></button></div>
   <div class="set-body">
-    <div class="set-sec"><h3 class="set-sec-title">Account</h3>
-      <div class="set-item"><div class="set-item__info"><span id="setName">—</span><small id="setEmail"></small></div></div>
-      <div class="set-item set-item--click" onclick="openOverlay('bizNameOverlay')"><div class="set-item__info"><span>Business Name</span><small id="setBizNameDisp"></small></div><span class="set-arrow">›</span></div>
-      <div class="set-item"><span>Sync</span><span id="setSyncStatus" class="set-val"></span></div>
-    </div>
-    <div class="set-sec owner-only"><h3 class="set-sec-title">Security</h3>
-      <div class="set-item set-item--click" onclick="openChangePinOverlay()">🔐 <span>Change PIN</span><span class="set-arrow">›</span></div>
-    </div>
-    <div class="set-sec owner-only"><h3 class="set-sec-title">Team</h3>
-      <div class="set-item"><input type="email" id="staffEmailInput" class="set-input" placeholder="staff@email.com"><button class="btn btn--sm btn--primary" onclick="addStaff()">Add</button></div>
-      <div id="teamList"></div>
-    </div>
+    <div class="set-sec"><h3 class="set-sec-title">Account</h3><div class="set-item"><div class="set-item__info"><span id="setName">—</span><small id="setEmail"></small></div></div><div class="set-item set-item--click" onclick="openOverlay('bizNameOverlay')"><div class="set-item__info"><span>Business Name</span><small id="setBizNameDisp"></small></div><span class="set-arrow">›</span></div><div class="set-item"><span>Sync</span><span id="setSyncStatus" class="set-val"></span></div></div>
+    <div class="set-sec owner-only"><h3 class="set-sec-title">Security</h3><div class="set-item set-item--click" onclick="openChangePinOverlay()">🔐 <span>Change PIN</span><span class="set-arrow">›</span></div></div>
+    <div class="set-sec owner-only"><h3 class="set-sec-title">Team</h3><div class="set-item"><input type="email" id="staffEmailInput" class="set-input" placeholder="staff@email.com"><button class="btn btn--sm btn--primary" onclick="addStaff()">Add</button></div><div id="teamList"></div></div>
     <div class="set-sec"><h3 class="set-sec-title">Preferences</h3>
       <div class="set-item"><span>Theme</span><div class="btn-grp"><button class="theme-btn" data-theme-btn="dark" onclick="applyTheme('dark')">Dark</button><button class="theme-btn" data-theme-btn="light" onclick="applyTheme('light')">Light</button><button class="theme-btn" data-theme-btn="auto" onclick="applyTheme('auto')">Auto</button></div></div>
       <div class="set-item"><span>Language</span><div class="btn-grp"><button class="lang-btn" data-lang-btn="en" onclick="changeLang('en')">English</button><button class="lang-btn" data-lang-btn="hi" onclick="changeLang('hi')">हिंदी</button></div></div>
@@ -265,185 +262,56 @@
       <div class="set-item"><span>Push Notifications</span><label class="tog"><input type="checkbox" id="setNotifToggle" onchange="toggleNotif(this.checked)" role="switch"><span class="tog-track"></span></label></div>
     </div>
     <div class="set-sec"><h3 class="set-sec-title">Payments</h3>
-      <div class="set-item"><div class="set-item__full"><label class="set-lbl">UPI VPA (for payment links)</label><div class="set-row"><input type="text" id="setUpiVpa" class="set-input" placeholder="yourname@upi"><button class="btn btn--sm btn--primary" onclick="saveUpiVpa()">Save</button></div></div></div>
-      <div class="set-item"><div class="set-item__full"><label class="set-lbl">Supplier Phone (for stock WhatsApp)</label><div class="set-row"><input type="tel" id="setSupPhone" class="set-input" placeholder="9876543210"><button class="btn btn--sm btn--primary" onclick="saveSupPhone()">Save</button></div></div></div>
+      <div class="set-item"><div class="set-item__full"><label class="set-lbl">UPI VPA</label><div class="set-row"><input type="text" id="setUpiVpa" class="set-input" placeholder="yourname@upi"><button class="btn btn--sm btn--primary" onclick="saveUpiVpa()">Save</button></div></div></div>
+      <div class="set-item"><div class="set-item__full"><label class="set-lbl">Supplier Phone (WhatsApp)</label><div class="set-row"><input type="tel" id="setSupPhone" class="set-input" placeholder="9876543210"><button class="btn btn--sm btn--primary" onclick="saveSupPhone()">Save</button></div></div></div>
     </div>
-    <div class="set-sec"><h3 class="set-sec-title">Data</h3>
-      <div class="set-item set-item--click" onclick="exportAllData()">⬇️ <span>Export All Data (JSON)</span></div>
-      <div class="set-item set-item--click" onclick="document.getElementById('importFile').click()">⬆️ <span>Import Data</span><input type="file" id="importFile" accept=".json" style="display:none" onchange="importDataFile(event)"></div>
-    </div>
-    <div class="set-sec"><h3 class="set-sec-title">About</h3>
-      <div class="set-item"><span>Version</span><span class="set-val">Meri Dukaan v8.0</span></div>
-      <div class="set-item"><span>Cost</span><span class="set-val">Free forever ✅</span></div>
-    </div>
-    <div class="set-sec" style="margin-top:8px">
-      <div class="set-item set-item--click" onclick="signOutApp()"><span style="color:var(--rd)">🚪 Sign Out</span></div>
-    </div>
+    <div class="set-sec"><h3 class="set-sec-title">Data</h3><div class="set-item set-item--click" onclick="exportAllData()">⬇️ <span>Export All Data (JSON)</span></div><div class="set-item set-item--click" onclick="document.getElementById('importFile').click()">⬆️ <span>Import Data</span><input type="file" id="importFile" accept=".json" style="display:none" onchange="importDataFile(event)"></div></div>
+    <div class="set-sec"><h3 class="set-sec-title">About</h3><div class="set-item"><span>Version</span><span class="set-val">Meri Dukaan v8.0</span></div><div class="set-item"><span>Cost</span><span class="set-val">Free forever ✅</span></div></div>
+    <div class="set-sec"><div class="set-item set-item--click" onclick="signOutApp()"><span style="color:var(--rd)">🚪 Sign Out</span></div></div>
   </div>
 </section>
 
 <!-- ═══ OVERLAYS ═══ -->
-
 <!-- Sale Form -->
-<div id="saleFormOverlay" class="overlay" role="dialog" aria-modal="true" aria-hidden="true">
-  <div class="sheet"><div class="sheet-handle"></div>
-  <div class="sheet-head"><h2 class="sheet-title" id="sfTitle">New Sale</h2><button class="sheet-close" onclick="closeSaleForm()">✕</button></div>
-  <form id="saleForm" onsubmit="saveSale(event)" novalidate>
-    <input type="hidden" id="sfId">
-    <div class="form-grp"><label class="form-lbl">Customer *</label><button type="button" class="cust-trigger" id="sfCustDisplay" onclick="openOverlay('custPickerOverlay')">Select Customer</button></div>
-    <div class="form-grp"><label class="form-lbl" for="sfDate">Date</label><input type="date" id="sfDate" class="form-inp" required></div>
-    <div class="form-row">
-      <div class="form-grp"><label class="form-lbl" for="sfQty">Qty (roti) *</label><input type="number" id="sfQty" class="form-inp" min="1" max="9999" step="1" oninput="calcTotal()" required></div>
-      <div class="form-grp"><label class="form-lbl" for="sfRate">Rate (₹) *</label><input type="number" id="sfRate" class="form-inp" min="0.5" max="500" step="0.5" oninput="calcTotal()" required></div>
-    </div>
-    <div class="sale-total" aria-live="polite">Total: <strong id="sfTotal">₹0</strong></div>
-    <div class="form-grp"><label class="form-lbl">Payment Type</label>
-      <div class="pay-grp" role="group">
-        <label class="pay-opt"><input type="radio" name="sfPay" value="cash" checked> <span>💵 Cash</span></label>
-        <label class="pay-opt"><input type="radio" name="sfPay" value="upi"> <span>📱 UPI</span></label>
-        <label class="pay-opt"><input type="radio" name="sfPay" value="credit"> <span>📒 Credit</span></label>
-      </div>
-    </div>
-    <button type="button" id="sfUpiBtn" class="btn btn--upi btn--full" onclick="openUpiCollect()" style="display:none">Collect via UPI 📲</button>
-    <button type="submit" id="sfSubmitBtn" class="btn btn--primary btn--full">Save Sale</button>
-  </form></div>
-</div>
+<div id="saleFormOverlay" class="overlay" role="dialog" aria-modal="true" aria-hidden="true"><div class="sheet"><div class="sheet-handle"></div><div class="sheet-head"><h2 class="sheet-title" id="sfTitle">New Sale</h2><button class="sheet-close" onclick="closeSaleForm()">✕</button></div><form id="saleForm" onsubmit="saveSale(event)" novalidate><input type="hidden" id="sfId"><div class="form-grp"><label class="form-lbl">Customer *</label><button type="button" class="cust-trigger" id="sfCustDisplay" onclick="openOverlay('custPickerOverlay')">Select Customer</button></div><div class="form-grp"><label class="form-lbl" for="sfDate">Date</label><input type="date" id="sfDate" class="form-inp" required></div><div class="form-row"><div class="form-grp"><label class="form-lbl" for="sfQty">Qty (roti) *</label><input type="number" id="sfQty" class="form-inp" min="1" max="9999" step="1" oninput="calcTotal()" required></div><div class="form-grp"><label class="form-lbl" for="sfRate">Rate (₹) *</label><input type="number" id="sfRate" class="form-inp" min="0.5" max="500" step="0.5" oninput="calcTotal()" required></div></div><div class="sale-total">Total: <strong id="sfTotal">₹0</strong></div><div class="form-grp"><label class="form-lbl">Payment</label><div class="pay-grp"><label class="pay-opt"><input type="radio" name="sfPay" value="cash" checked><span>💵 Cash</span></label><label class="pay-opt"><input type="radio" name="sfPay" value="upi"><span>📱 UPI</span></label><label class="pay-opt"><input type="radio" name="sfPay" value="credit"><span>📒 Credit</span></label></div></div><button type="button" id="sfUpiBtn" class="btn btn--upi btn--full" onclick="openUpiCollect()" style="display:none;margin-bottom:10px">Collect via UPI 📲</button><button type="submit" id="sfSubmitBtn" class="btn btn--primary btn--full">Save Sale</button></form></div></div>
 
 <!-- Customer Picker -->
-<div id="custPickerOverlay" class="overlay" role="dialog" aria-modal="true" aria-hidden="true">
-  <div class="sheet"><div class="sheet-handle"></div>
-  <div class="sheet-head"><h2 class="sheet-title">Select Customer</h2><button class="sheet-close" onclick="closeOverlay('custPickerOverlay')">✕</button></div>
-  <div class="search-bar"><svg class="sb-ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input type="search" class="sb-input" placeholder="Search…" oninput="filterCustPicker(this.value)"></div>
-  <div id="custPickerList" role="listbox"></div></div>
-</div>
+<div id="custPickerOverlay" class="overlay" role="dialog" aria-modal="true" aria-hidden="true"><div class="sheet"><div class="sheet-handle"></div><div class="sheet-head"><h2 class="sheet-title">Select Customer</h2><button class="sheet-close" onclick="closeOverlay('custPickerOverlay')">✕</button></div><div class="search-bar"><svg class="sb-ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input type="search" class="sb-input" placeholder="Search…" oninput="filterCustPicker(this.value)"></div><div id="custPickerList" role="listbox"></div></div></div>
 
 <!-- Customer Form -->
-<div id="custFormOverlay" class="overlay" role="dialog" aria-modal="true" aria-hidden="true">
-  <div class="sheet"><div class="sheet-handle"></div>
-  <div class="sheet-head"><h2 class="sheet-title" id="cfFormTitle">Add Customer</h2><button class="sheet-close" onclick="closeCustForm()">✕</button></div>
-  <form id="custForm" onsubmit="saveCustomer(event)" novalidate>
-    <input type="hidden" id="cfId">
-    <div class="form-grp"><label class="form-lbl" for="cfName">Customer Name *</label><input type="text" id="cfName" class="form-inp" maxlength="100" required autocomplete="name"></div>
-    <div class="form-grp"><label class="form-lbl" for="cfPhone">Phone (WhatsApp)</label><input type="tel" id="cfPhone" class="form-inp" maxlength="10" autocomplete="tel"></div>
-    <div class="form-grp"><label class="form-lbl" for="cfAddr">Address</label><input type="text" id="cfAddr" class="form-inp" maxlength="200"></div>
-    <div class="form-row">
-      <div class="form-grp"><label class="form-lbl" for="cfType">Order Type</label><select id="cfType" class="form-inp" onchange="setCustType(this.value)"><option value="fixed">Fixed</option><option value="variable">Variable</option></select></div>
-      <div class="form-grp"><label class="form-lbl" for="cfRate">Rate (₹/roti) *</label><input type="number" id="cfRate" class="form-inp" min="1" max="500" step="0.5" required></div>
-    </div>
-    <div class="form-grp" id="cfFixedGrp" style="display:none"><label class="form-lbl" for="cfQty">Fixed Qty/day *</label><input type="number" id="cfQty" class="form-inp" min="1" max="9999" step="1"></div>
-    <div class="form-grp"><label class="form-lbl" for="cfStatus">Status</label><select id="cfStatus" class="form-inp"><option value="active">Active</option><option value="inactive">Inactive</option><option value="seasonal">Seasonal</option></select></div>
-    <button type="submit" id="cfSubmitBtn" class="btn btn--primary btn--full">Save Customer</button>
-  </form></div>
-</div>
+<div id="custFormOverlay" class="overlay" role="dialog" aria-modal="true" aria-hidden="true"><div class="sheet"><div class="sheet-handle"></div><div class="sheet-head"><h2 class="sheet-title" id="cfFormTitle">Add Customer</h2><button class="sheet-close" onclick="closeCustForm()">✕</button></div><form id="custForm" onsubmit="saveCustomer(event)" novalidate><input type="hidden" id="cfId"><div class="form-grp"><label class="form-lbl" for="cfName">Name *</label><input type="text" id="cfName" class="form-inp" maxlength="100" required autocomplete="name"></div><div class="form-grp"><label class="form-lbl" for="cfPhone">Phone (WhatsApp)</label><input type="tel" id="cfPhone" class="form-inp" maxlength="10"></div><div class="form-grp"><label class="form-lbl" for="cfAddr">Address</label><input type="text" id="cfAddr" class="form-inp" maxlength="200"></div><div class="form-row"><div class="form-grp"><label class="form-lbl" for="cfType">Order Type</label><select id="cfType" class="form-inp" onchange="setCustType(this.value)"><option value="fixed">Fixed</option><option value="variable">Variable</option></select></div><div class="form-grp"><label class="form-lbl" for="cfRate">Rate (₹/roti) *</label><input type="number" id="cfRate" class="form-inp" min="1" max="500" step="0.5" required></div></div><div class="form-grp" id="cfFixedGrp" style="display:none"><label class="form-lbl" for="cfQty">Fixed Qty/day *</label><input type="number" id="cfQty" class="form-inp" min="1" max="9999" step="1"></div><div class="form-grp"><label class="form-lbl" for="cfStatus">Status</label><select id="cfStatus" class="form-inp"><option value="active">Active</option><option value="inactive">Inactive</option><option value="seasonal">Seasonal</option></select></div><button type="submit" id="cfSubmitBtn" class="btn btn--primary btn--full">Save Customer</button></form></div></div>
 
 <!-- Customer Profile -->
-<div id="custProfileOverlay" class="overlay" role="dialog" aria-modal="true" aria-hidden="true">
-  <div class="sheet"><div class="sheet-handle"></div>
-  <div class="sheet-head"><h2 class="sheet-title">Customer Profile</h2><button class="sheet-close" onclick="closeOverlay('custProfileOverlay')">✕</button></div>
-  <div id="custProfileContent"></div></div>
-</div>
+<div id="custProfileOverlay" class="overlay" role="dialog" aria-modal="true" aria-hidden="true"><div class="sheet"><div class="sheet-handle"></div><div class="sheet-head"><h2 class="sheet-title">Customer Profile</h2><button class="sheet-close" onclick="closeOverlay('custProfileOverlay')">✕</button></div><div id="custProfileContent"></div></div></div>
 
 <!-- Credit Payment -->
-<div id="creditPayOverlay" class="overlay" role="dialog" aria-modal="true" aria-hidden="true">
-  <div class="sheet"><div class="sheet-handle"></div>
-  <div class="sheet-head"><h2 class="sheet-title">Record Payment</h2><button class="sheet-close" onclick="closeOverlay('creditPayOverlay')">✕</button></div>
-  <input type="hidden" id="crpCustId">
-  <div class="crp-sum"><div class="crp-name" id="crpName"></div><div>Outstanding: <strong id="crpBal"></strong></div></div>
-  <form onsubmit="saveCreditPayment(event)" novalidate>
-    <button type="button" id="crpFullBtn" class="btn btn--outline btn--full" onclick="crpSetFull()" style="margin-bottom:12px">Collect Full Amount</button>
-    <div class="form-grp"><label class="form-lbl" for="crpAmount">Payment Amount (₹) *</label><input type="number" id="crpAmount" class="form-inp" style="font-size:20px;text-align:center;font-weight:700" min="1" required placeholder="0"></div>
-    <button type="submit" id="crpSubmitBtn" class="btn btn--primary btn--full">Record Payment</button>
-  </form></div>
-</div>
+<div id="creditPayOverlay" class="overlay" role="dialog" aria-modal="true" aria-hidden="true"><div class="sheet"><div class="sheet-handle"></div><div class="sheet-head"><h2 class="sheet-title">Record Payment</h2><button class="sheet-close" onclick="closeOverlay('creditPayOverlay')">✕</button></div><input type="hidden" id="crpCustId"><div class="crp-sum"><div class="crp-name" id="crpName"></div><div>Outstanding: <strong id="crpBal"></strong></div></div><form onsubmit="saveCreditPayment(event)" novalidate><button type="button" id="crpFullBtn" class="btn btn--outline btn--full" onclick="crpSetFull()" style="margin-bottom:12px">Collect Full Amount</button><div class="form-grp"><label class="form-lbl" for="crpAmount">Payment Amount (₹) *</label><input type="number" id="crpAmount" class="form-inp" style="font-size:20px;text-align:center;font-weight:700" min="1" required placeholder="0"></div><button type="submit" id="crpSubmitBtn" class="btn btn--primary btn--full">Record Payment</button></form></div></div>
 
 <!-- Expense Form -->
-<div id="expFormOverlay" class="overlay" role="dialog" aria-modal="true" aria-hidden="true">
-  <div class="sheet"><div class="sheet-handle"></div>
-  <div class="sheet-head"><h2 class="sheet-title" id="efTitle">Add Expense</h2><button class="sheet-close" onclick="closeExpForm()">✕</button></div>
-  <form id="expForm" onsubmit="saveExp(event)" novalidate>
-    <input type="hidden" id="efId">
-    <div class="form-grp"><label class="form-lbl" for="efCategory">Category *</label><select id="efCategory" class="form-inp" required><option value="">Select…</option><option value="Atta (Wheat)">Atta (Wheat)</option><option value="Oil">Oil</option><option value="Gas Cylinder">Gas Cylinder</option><option value="Polythene Bags">Polythene Bags</option><option value="Labour">Labour</option><option value="Electricity">Electricity</option><option value="Rent">Rent</option><option value="Transport">Transport</option><option value="Maintenance">Maintenance</option><option value="Other">Other</option></select></div>
-    <div class="form-row">
-      <div class="form-grp"><label class="form-lbl" for="efAmount">Amount (₹) *</label><input type="number" id="efAmount" class="form-inp" min="0.01" max="999999" step="0.01" required></div>
-      <div class="form-grp"><label class="form-lbl" for="efDate">Date</label><input type="date" id="efDate" class="form-inp" required></div>
-    </div>
-    <div class="form-row">
-      <div class="form-grp"><label class="form-lbl" for="efQty">Quantity</label><input type="number" id="efQty" class="form-inp" min="0.01" step="0.1" placeholder="e.g. 25"></div>
-      <div class="form-grp"><label class="form-lbl" for="efUnit">Unit</label><select id="efUnit" class="form-inp"><option value="">—</option><option value="kg">kg</option><option value="litre">litre</option><option value="piece">piece</option><option value="bag">bag</option></select></div>
-    </div>
-    <div class="form-grp"><label class="form-lbl" for="efNote">Note (optional)</label><input type="text" id="efNote" class="form-inp" maxlength="200"></div>
-    <button type="submit" id="efSubmitBtn" class="btn btn--primary btn--full">Save Expense</button>
-  </form></div>
-</div>
+<div id="expFormOverlay" class="overlay" role="dialog" aria-modal="true" aria-hidden="true"><div class="sheet"><div class="sheet-handle"></div><div class="sheet-head"><h2 class="sheet-title" id="efTitle">Add Expense</h2><button class="sheet-close" onclick="closeExpForm()">✕</button></div><form id="expForm" onsubmit="saveExp(event)" novalidate><input type="hidden" id="efId"><div class="form-grp"><label class="form-lbl" for="efCategory">Category *</label><select id="efCategory" class="form-inp" required><option value="">Select…</option><option>Atta (Wheat)</option><option>Oil</option><option>Gas Cylinder</option><option>Polythene Bags</option><option>Labour</option><option>Electricity</option><option>Rent</option><option>Transport</option><option>Maintenance</option><option>Other</option></select></div><div class="form-row"><div class="form-grp"><label class="form-lbl" for="efAmount">Amount (₹) *</label><input type="number" id="efAmount" class="form-inp" min="0.01" max="999999" step="0.01" required></div><div class="form-grp"><label class="form-lbl" for="efDate">Date</label><input type="date" id="efDate" class="form-inp"></div></div><div class="form-row"><div class="form-grp"><label class="form-lbl" for="efQty">Quantity</label><input type="number" id="efQty" class="form-inp" min="0.01" step="0.1" placeholder="e.g. 25"></div><div class="form-grp"><label class="form-lbl" for="efUnit">Unit</label><select id="efUnit" class="form-inp"><option value="">—</option><option value="kg">kg</option><option value="litre">litre</option><option value="piece">piece</option><option value="bag">bag</option></select></div></div><div class="form-grp"><label class="form-lbl" for="efNote">Note</label><input type="text" id="efNote" class="form-inp" maxlength="200"></div><button type="submit" id="efSubmitBtn" class="btn btn--primary btn--full">Save Expense</button></form></div></div>
 
 <!-- Waste Form -->
-<div id="wasteFormOverlay" class="overlay" role="dialog" aria-modal="true" aria-hidden="true">
-  <div class="sheet"><div class="sheet-handle"></div>
-  <div class="sheet-head"><h2 class="sheet-title" id="wfTitle">Record Waste</h2><button class="sheet-close" onclick="closeWasteForm()">✕</button></div>
-  <div class="waste-ctx" id="wfCtx"></div>
-  <form id="wasteForm" onsubmit="saveWaste(event)" novalidate>
-    <input type="hidden" id="wfId">
-    <div class="form-grp"><label class="form-lbl" for="wfQty">Quantity wasted (roti) *</label><input type="number" id="wfQty" class="form-inp" min="1" max="9999" step="1" required></div>
-    <div class="form-grp"><label class="form-lbl" for="wfDate">Date</label><input type="date" id="wfDate" class="form-inp" required></div>
-    <div class="form-grp"><label class="form-lbl" for="wfNote">Note</label><input type="text" id="wfNote" class="form-inp" maxlength="200"></div>
-    <button type="submit" id="wfSubmitBtn" class="btn btn--primary btn--full">Record Waste</button>
-  </form></div>
-</div>
+<div id="wasteFormOverlay" class="overlay" role="dialog" aria-modal="true" aria-hidden="true"><div class="sheet"><div class="sheet-handle"></div><div class="sheet-head"><h2 class="sheet-title" id="wfTitle">Record Waste</h2><button class="sheet-close" onclick="closeWasteForm()">✕</button></div><div class="waste-ctx" id="wfCtx"></div><form id="wasteForm" onsubmit="saveWaste(event)" novalidate><input type="hidden" id="wfId"><div class="form-grp"><label class="form-lbl" for="wfQty">Quantity wasted (roti) *</label><input type="number" id="wfQty" class="form-inp" min="1" max="9999" step="1" required></div><div class="form-grp"><label class="form-lbl" for="wfDate">Date</label><input type="date" id="wfDate" class="form-inp"></div><div class="form-grp"><label class="form-lbl" for="wfNote">Note</label><input type="text" id="wfNote" class="form-inp" maxlength="200"></div><button type="submit" id="wfSubmitBtn" class="btn btn--primary btn--full">Record Waste</button></form></div></div>
 
 <!-- Note Form -->
-<div id="noteFormOverlay" class="overlay" role="dialog" aria-modal="true" aria-hidden="true">
-  <div class="sheet"><div class="sheet-handle"></div>
-  <div class="sheet-head"><h2 class="sheet-title" id="nfFormTitle">New Note</h2><button class="sheet-close" onclick="closeNoteForm()">✕</button></div>
-  <form id="noteForm" onsubmit="saveNote(event)" novalidate>
-    <input type="hidden" id="nfId"><input type="hidden" id="nfCat" value="general">
-    <div class="cat-btns" role="group"><button type="button" class="cat-btn cat-btn--active" data-cat="general" onclick="setNoteCat('general',this)">📝 General</button><button type="button" class="cat-btn" data-cat="reminder" onclick="setNoteCat('reminder',this)">🔔 Reminder</button><button type="button" class="cat-btn" data-cat="idea" onclick="setNoteCat('idea',this)">💡 Idea</button><button type="button" class="cat-btn" data-cat="supplier" onclick="setNoteCat('supplier',this)">🏪 Supplier</button></div>
-    <div class="form-grp"><label class="form-lbl" for="nfTitle">Title (optional)</label><input type="text" id="nfTitle" class="form-inp" maxlength="100"></div>
-    <div class="form-grp"><label class="form-lbl" for="nfContent">Note *</label><textarea id="nfContent" class="form-inp form-ta" rows="5" maxlength="5000" required></textarea></div>
-    <label class="tog-lbl"><input type="checkbox" id="nfPin" role="switch"> 📌 Pin this note</label>
-    <button type="submit" id="nfSubmitBtn" class="btn btn--primary btn--full" style="margin-top:12px">Save Note</button>
-  </form></div>
-</div>
+<div id="noteFormOverlay" class="overlay" role="dialog" aria-modal="true" aria-hidden="true"><div class="sheet"><div class="sheet-handle"></div><div class="sheet-head"><h2 class="sheet-title" id="nfFormTitle">New Note</h2><button class="sheet-close" onclick="closeNoteForm()">✕</button></div><form id="noteForm" onsubmit="saveNote(event)" novalidate><input type="hidden" id="nfId"><input type="hidden" id="nfCat" value="general"><div class="cat-btns"><button type="button" class="cat-btn cat-btn--active" data-cat="general" onclick="setNoteCat('general',this)">📝 General</button><button type="button" class="cat-btn" data-cat="reminder" onclick="setNoteCat('reminder',this)">🔔 Reminder</button><button type="button" class="cat-btn" data-cat="idea" onclick="setNoteCat('idea',this)">💡 Idea</button><button type="button" class="cat-btn" data-cat="supplier" onclick="setNoteCat('supplier',this)">🏪 Supplier</button></div><div class="form-grp"><label class="form-lbl" for="nfTitle">Title (optional)</label><input type="text" id="nfTitle" class="form-inp" maxlength="100"></div><div class="form-grp"><label class="form-lbl" for="nfContent">Note *</label><textarea id="nfContent" class="form-inp form-ta" rows="5" maxlength="5000" required></textarea></div><label class="tog-lbl"><input type="checkbox" id="nfPin" role="switch"> 📌 Pin this note</label><button type="submit" id="nfSubmitBtn" class="btn btn--primary btn--full" style="margin-top:12px">Save Note</button></form></div></div>
 
 <!-- Date Picker -->
-<div id="datepickerOverlay" class="overlay" role="dialog" aria-modal="true" aria-hidden="true">
-  <div class="sheet sheet--sm"><div class="sheet-handle"></div>
-  <div class="dp-nav"><button class="dp-nav-btn" onclick="dpNavMonth(-1)" aria-label="Previous">‹</button><h3 id="dpTitle" class="dp-month"></h3><button class="dp-nav-btn" onclick="dpNavMonth(1)" aria-label="Next">›</button></div>
-  <div id="dpGrid" class="dp-grid" role="grid"></div></div>
-</div>
+<div id="datepickerOverlay" class="overlay" role="dialog" aria-modal="true" aria-hidden="true"><div class="sheet sheet--sm"><div class="sheet-handle"></div><div class="dp-nav"><button class="dp-nav-btn" onclick="dpNavMonth(-1)">‹</button><h3 id="dpTitle" class="dp-month"></h3><button class="dp-nav-btn" onclick="dpNavMonth(1)">›</button></div><div id="dpGrid" class="dp-grid"></div></div></div>
 
-<!-- Confirm Dialog -->
-<div id="confirmDialog" class="overlay overlay--center" role="alertdialog" aria-modal="true" aria-labelledby="cfTitle" aria-hidden="true">
-  <div class="confirm-box"><div class="cf-icon" id="cfIcon">⚠️</div><h3 class="cf-title" id="cfTitle"></h3><p class="cf-body" id="cfBody"></p><div class="cf-acts"><button class="btn btn--ghost" id="cfNo" onclick="onConfirmNo()">Cancel</button><button class="btn btn--danger" id="cfYes" onclick="onConfirmYes()">Delete</button></div></div>
-</div>
+<!-- Confirm -->
+<div id="confirmDialog" class="overlay overlay--center" role="alertdialog" aria-modal="true" aria-labelledby="cfTitle" aria-hidden="true"><div class="confirm-box"><div class="cf-icon" id="cfIcon">⚠️</div><h3 class="cf-title" id="cfTitle"></h3><p class="cf-body" id="cfBody"></p><div class="cf-acts"><button class="btn btn--ghost" id="cfNo" onclick="onConfirmNo()">Cancel</button><button class="btn btn--danger" id="cfYes" onclick="onConfirmYes()">Delete</button></div></div></div>
 
 <!-- Export Summary -->
-<div id="exportSumOverlay" class="overlay" role="dialog" aria-modal="true" aria-hidden="true">
-  <div class="sheet sheet--sm"><div class="sheet-handle"></div>
-  <div class="sheet-head"><h2 class="sheet-title">Export Summary</h2><button class="sheet-close" onclick="closeOverlay('exportSumOverlay')">✕</button></div>
-  <div id="exportSumContent"></div>
-  <button id="rptPdfBtn" class="btn btn--primary btn--full" style="margin-top:16px" onclick="downloadPdf()">📄 Download PDF</button></div>
-</div>
+<div id="exportSumOverlay" class="overlay" role="dialog" aria-modal="true" aria-hidden="true"><div class="sheet sheet--sm"><div class="sheet-handle"></div><div class="sheet-head"><h2 class="sheet-title">Export Summary</h2><button class="sheet-close" onclick="closeOverlay('exportSumOverlay')">✕</button></div><div id="exportSumContent"></div><button id="rptPdfBtn" class="btn btn--primary btn--full" style="margin-top:16px" onclick="downloadPdf()">📄 Download PDF</button></div></div>
 
-<!-- Biz Name Edit -->
-<div id="bizNameOverlay" class="overlay" role="dialog" aria-modal="true" aria-hidden="true">
-  <div class="sheet sheet--sm"><div class="sheet-handle"></div>
-  <div class="sheet-head"><h2 class="sheet-title">Business Name</h2><button class="sheet-close" onclick="closeOverlay('bizNameOverlay')">✕</button></div>
-  <div class="form-grp"><label class="form-lbl">Name</label><input type="text" id="setBizNameInput" class="form-inp" maxlength="100" placeholder="My Roti Business"></div>
-  <button class="btn btn--primary btn--full" onclick="saveBizName()">Save</button></div>
-</div>
+<!-- Biz Name -->
+<div id="bizNameOverlay" class="overlay" role="dialog" aria-modal="true" aria-hidden="true"><div class="sheet sheet--sm"><div class="sheet-handle"></div><div class="sheet-head"><h2 class="sheet-title">Business Name</h2><button class="sheet-close" onclick="closeOverlay('bizNameOverlay')">✕</button></div><div class="form-grp"><label class="form-lbl">Name</label><input type="text" id="setBizNameInput" class="form-inp" maxlength="100" placeholder="My Roti Business"></div><button class="btn btn--primary btn--full" onclick="saveBizName()">Save</button></div></div>
 
 <!-- Change PIN -->
-<div id="changePinOverlay" class="overlay" role="dialog" aria-modal="true" aria-hidden="true">
-  <div class="sheet sheet--sm"><div class="sheet-handle"></div>
-  <div class="sheet-head"><h2 class="sheet-title">Change PIN</h2><button class="sheet-close" onclick="closeOverlay('changePinOverlay')">✕</button></div>
-  <div class="pin-wrap" style="padding:0">
-    <div class="pin-label" id="cpLabel">Enter new PIN</div>
-    <div id="cpDots" class="pin-dots"><span class="pin-dot"></span><span class="pin-dot"></span><span class="pin-dot"></span><span class="pin-dot"></span></div>
-    <div class="pin-pad"><button class="pin-key" onclick="cpKey('1')">1</button><button class="pin-key" onclick="cpKey('2')">2</button><button class="pin-key" onclick="cpKey('3')">3</button><button class="pin-key" onclick="cpKey('4')">4</button><button class="pin-key" onclick="cpKey('5')">5</button><button class="pin-key" onclick="cpKey('6')">6</button><button class="pin-key" onclick="cpKey('7')">7</button><button class="pin-key" onclick="cpKey('8')">8</button><button class="pin-key" onclick="cpKey('9')">9</button><div></div><button class="pin-key" onclick="cpKey('0')">0</button><button class="pin-key pin-back" onclick="cpBack()">⌫</button></div>
-  </div></div>
-</div>
+<div id="changePinOverlay" class="overlay" role="dialog" aria-modal="true" aria-hidden="true"><div class="sheet sheet--sm"><div class="sheet-handle"></div><div class="sheet-head"><h2 class="sheet-title">Change PIN</h2><button class="sheet-close" onclick="closeOverlay('changePinOverlay')">✕</button></div><div class="pin-wrap" style="padding:0"><div class="pin-label" id="cpLabel">Enter new PIN</div><div id="cpDots" class="pin-dots"><span class="pin-dot"></span><span class="pin-dot"></span><span class="pin-dot"></span><span class="pin-dot"></span></div><div class="pin-pad"><button class="pin-key" onclick="cpKey('1')">1</button><button class="pin-key" onclick="cpKey('2')">2</button><button class="pin-key" onclick="cpKey('3')">3</button><button class="pin-key" onclick="cpKey('4')">4</button><button class="pin-key" onclick="cpKey('5')">5</button><button class="pin-key" onclick="cpKey('6')">6</button><button class="pin-key" onclick="cpKey('7')">7</button><button class="pin-key" onclick="cpKey('8')">8</button><button class="pin-key" onclick="cpKey('9')">9</button><div></div><button class="pin-key" onclick="cpKey('0')">0</button><button class="pin-key pin-back" onclick="cpBack()">⌫</button></div></div></div></div>
 
-<!-- ═══ TOAST ═══ -->
+<!-- TOAST -->
 <div id="toast" class="toast" role="alert" aria-live="assertive" aria-atomic="true" aria-hidden="true">
   <span class="toast-msg"></span>
   <button id="toastUndo" class="toast-undo" style="display:none">UNDO</button>
@@ -453,13 +321,13 @@
 
 <noscript><div style="padding:24px;text-align:center;font-family:sans-serif"><h2>JavaScript Required</h2><p>Please enable JavaScript to use Meri Dukaan.</p></div></noscript>
 
-<!-- ✅ Firebase COMPAT SDK (not modular) — works on GitHub Pages without build step -->
+<!-- ✅ Firebase COMPAT SDK -->
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js"></script>
 
-<!-- ✅ App scripts — regular script tags, correct order, no ES modules -->
+<!-- ✅ App scripts — correct load order -->
 <script src="js/i18n.js"></script>
 <script src="js/state.js"></script>
 <script src="js/core.js"></script>
@@ -472,14 +340,14 @@
 <script src="js/notebook.js"></script>
 <script src="js/fcm.js"></script>
 
-<!-- Chart.js (async — only needed for reports/analytics) -->
-<script async src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<!-- ✅ Chart.js — fixed CDN URL (was 404 before) -->
+<script async src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 
 <!-- Service Worker -->
 <script>
-if('serviceWorker' in navigator){
-  window.addEventListener('load',function(){
-    navigator.serviceWorker.register('./sw.js').catch(function(e){ console.warn('[SW]',e); });
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function() {
+    navigator.serviceWorker.register('./sw.js').catch(function(e) { console.warn('[SW]', e); });
   });
 }
 </script>
